@@ -381,34 +381,34 @@ pub fn optimize(&self) {
 
     unsafe {
         // Create the pass builder
-        let pb = llvm_sys::LLVMCreatePassBuilder();
+        let pb = llvm_sys::core::LLVMCreatePassBuilder();
 
         // Create the analysis managers
-        let mam = llvm_sys::LLVMCreateModuleAnalysisManager();
-        let fam = llvm_sys::LLVMCreateFunctionAnalysisManager();
-        let cgam = llvm_sys::LLVMCreateCGSCCAnalysisManager();
-        let lam = llvm_sys::LLVMCreateLoopAnalysisManager();
+        let mam = llvm_sys::core::LLVMCreateModuleAnalysisManager();
+        let fam = llvm_sys::core::LLVMCreateFunctionAnalysisManager();
+        let cgam = llvm_sys::core::LLVMCreateCGSCCAnalysisManager();
+        let lam = llvm_sys::core::LLVMCreateLoopAnalysisManager();
 
         // Register the analysis passes
-        llvm_sys::LLVMPassBuilderRegisterModuleAnalyses(&*pb, &*mam);
-        llvm_sys::LLVMPassBuilderRegisterFunctionAnalyses(&*pb, &*fam);
-        llvm_sys::LLVMPassBuilderRegisterCGSCCAnalyses(&*pb, &*cgam);
-        llvm_sys::LLVMPassBuilderRegisterLoopAnalyses(&*pb, &*lam);
-        llvm_sys::LLVMPassBuilderCrossRegisterProxies(&*pb, &*lam, &*fam, &*cgam, &*mam);
+        llvm_sys::core::LLVMPassBuilderRegisterModuleAnalyses(&*pb, &*mam);
+        llvm_sys::core::LLVMPassBuilderRegisterFunctionAnalyses(&*pb, &*fam);
+        llvm_sys::core::LLVMPassBuilderRegisterCGSCCAnalyses(&*pb, &*cgam);
+        llvm_sys::core::LLVMPassBuilderRegisterLoopAnalyses(&*pb, &*lam);
+        llvm_sys::core::LLVMPassBuilderCrossRegisterProxies(&*pb, &*lam, &*fam, &*cgam, &*mam);
 
         // Create the optimization pipeline
-        let mpm = llvm_sys::LLVMPassBuilderBuildPerModuleDefaultPipeline(&*pb, self.opt_lvl);
+        let mpm = llvm_sys::core::LLVMPassBuilderBuildPerModuleDefaultPipeline(&*pb, self.opt_lvl);
 
         // Run the passes
         llvm_sys::core::LLVMRunPassManager(mpm, llmod);
 
         // Clean up
         llvm_sys::core::LLVMDisposePassManager(mpm);
-        llvm_sys::LLVMDisposeLoopAnalysisManager(lam);
-        llvm_sys::LLVMDisposeCGSCCAnalysisManager(cgam);
-        llvm_sys::LLVMDisposeFunctionAnalysisManager(fam);
-        llvm_sys::LLVMDisposeModuleAnalysisManager(mam);
-        llvm_sys::LLVMDisposePassBuilder(pb);
+        llvm_sys::core::LLVMDisposeLoopAnalysisManager(lam);
+        llvm_sys::core::LLVMDisposeCGSCCAnalysisManager(cgam);
+        llvm_sys::core::LLVMDisposeFunctionAnalysisManager(fam);
+        llvm_sys::core::LLVMDisposeModuleAnalysisManager(mam);
+        llvm_sys::core::LLVMDisposePassBuilder(pb);
     }
 }
 
