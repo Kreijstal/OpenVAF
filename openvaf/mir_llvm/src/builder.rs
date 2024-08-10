@@ -41,7 +41,7 @@ impl<'ll> MemLoc<'ll> {
     /// # Safety
     ///
     /// ptr_ty, ty and indices must be valid for ptr
-    pub unsafe fn read(&self, llbuilder: &llvm_sys::LLVMBuilder<'ll>) -> &'ll llvm_sys::LLVMValue {
+    pub unsafe fn read(&self, llbuilder: &llvm_sys::LLVMBuilder) -> &'ll llvm_sys::LLVMValue {
         self.read_with_ptr(llbuilder, self.ptr)
     }
 
@@ -50,7 +50,7 @@ impl<'ll> MemLoc<'ll> {
     /// ptr_ty, ty and indices must be valid for ptr
     pub unsafe fn read_with_ptr(
         &self,
-        llbuilder: &llvm_sys::LLVMBuilder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         let ptr = self.to_ptr_from(llbuilder, ptr);
@@ -60,7 +60,7 @@ impl<'ll> MemLoc<'ll> {
     /// # Safety
     ///
     /// ptr_ty and indices must be valid for ptr
-    pub unsafe fn to_ptr(&self, llbuilder: &llvm_sys::LLVMBuilder<'ll>) -> &'ll llvm_sys::LLVMValue {
+    pub unsafe fn to_ptr(&self, llbuilder: &llvm_sys::LLVMBuilder) -> &'ll llvm_sys::LLVMValue {
         self.to_ptr_from(llbuilder, self.ptr)
     }
 
@@ -69,7 +69,7 @@ impl<'ll> MemLoc<'ll> {
     /// ptr_ty and indices must be valid for ptr
     pub unsafe fn to_ptr_from(
         &self,
-        llbuilder: &llvm_sys::LLVMBuilder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         mut ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         if !self.indices.is_empty() {
@@ -136,7 +136,7 @@ impl<'ll> BuilderVal<'ll> {
 // All Builders must have an llfn associated with them
 #[must_use]
 pub struct Builder<'a, 'cx, 'll> {
-    pub llbuilder: &'a mut llvm_sys::LLVMBuilder<'ll>,
+    pub llbuilder: &'a mut llvm_sys::LLVMBuilder,
     pub cx: &'a CodegenCx<'cx, 'll>,
     pub func: &'a Function,
     pub blocks: TiVec<Block, Option<&'ll llvm_sys::LLVMBasicBlock>>,
