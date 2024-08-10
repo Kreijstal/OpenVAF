@@ -54,7 +54,7 @@ impl<'ll> MemLoc<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         let ptr = self.to_ptr_from(llbuilder, ptr);
-        LLVMBuildLoad2(llbuilder, self.ty, ptr, UNNAMED)
+        LLVMBuildLoad2(llbuilder as *mut _, self.ty as *mut _, ptr as *mut _, UNNAMED)
     }
 
     /// # Safety
@@ -197,7 +197,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// Must not be called when a block that already contains a terminator is selected
     /// Must be called in the entry block of the function
     pub unsafe fn alloca(&self, ty: &'ll llvm_sys::LLVMType) -> &'ll llvm_sys::LLVMValue {
-        llvm_sys::core::LLVMBuildAlloca(self.llbuilder, ty, UNNAMED)
+        llvm_sys::core::LLVMBuildAlloca(self.llbuilder as *mut _, ty as *mut _, UNNAMED)
     }
 
     /// # Safety
@@ -228,7 +228,7 @@ impl<'ll> Builder<'_, '_, 'll> {
 
         self.prepend_pos = exit;
         llvm_sys::core::LLVMPositionBuilderAtEnd(self.llbuilder, self.prepend_pos);
-        let phi = llvm_sys::core::LLVMBuildPhi(self.llbuilder, llvm_sys::core::LLVMTypeOf(then_val), UNNAMED);
+        let phi = llvm_sys::core::LLVMBuildPhi(self.llbuilder as *mut _, llvm_sys::core::LLVMTypeOf(then_val) as *mut _, UNNAMED);
         llvm_sys::core::LLVMAddIncoming(phi, [then_val, else_val].as_ptr(), [then_bb, else_bb].as_ptr(), 2);
         phi
     }
@@ -242,7 +242,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         then_val: &'ll llvm_sys::LLVMValue,
         else_val: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
-        llvm_sys::core::LLVMBuildSelect(self.llbuilder, cond, then_val, else_val, UNNAMED)
+        llvm_sys::core::LLVMBuildSelect(self.llbuilder as *mut _, cond as *mut _, then_val as *mut _, else_val as *mut _, UNNAMED)
     }
 
     /// # Safety
@@ -254,10 +254,10 @@ impl<'ll> Builder<'_, '_, 'll> {
         indices: &[&'ll llvm_sys::LLVMValue],
     ) -> &'ll llvm_sys::LLVMValue {
         llvm_sys::core::LLVMBuildGEP2(
-            self.llbuilder,
-            arr_ty,
-            ptr,
-            indices.as_ptr(),
+            self.llbuilder as *mut _,
+            arr_ty as *mut _,
+            ptr as *mut _,
+            indices.as_ptr() as *mut _,
             indices.len() as u32,
             UNNAMED,
         )
@@ -283,7 +283,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         ptr: &'ll llvm_sys::LLVMValue,
         idx: u32,
     ) -> &'ll llvm_sys::LLVMValue {
-        llvm_sys::core::LLVMBuildStructGEP2(self.llbuilder, struct_ty, ptr, idx, UNNAMED)
+        llvm_sys::core::LLVMBuildStructGEP2(self.llbuilder as *mut _, struct_ty as *mut _, ptr as *mut _, idx, UNNAMED)
     }
 
     /// # Safety
@@ -408,14 +408,14 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// must not be called multiple times
     /// a terminator must not be build for the exit bb trough other means
     pub unsafe fn ret(&mut self, val: &'ll llvm_sys::LLVMValue) {
-        llvm_sys::core::LLVMBuildRet(self.llbuilder, val);
+        llvm_sys::core::LLVMBuildRet(self.llbuilder as *mut _, val as *mut _);
     }
 
     /// # Safety
     /// must not be called multiple times
     /// a terminator must not be build for the exit bb trough other means
     pub unsafe fn ret_void(&mut self) {
-        llvm_sys::core::LLVMBuildRetVoid(self.llbuilder);
+        llvm_sys::core::LLVMBuildRetVoid(self.llbuilder as *mut _);
     }
 
     /// # Safety
@@ -428,10 +428,10 @@ impl<'ll> Builder<'_, '_, 'll> {
             mir::InstructionData::Binary { opcode, ref args } => (opcode, args.as_slice()),
             mir::InstructionData::Branch { cond, then_dst, else_dst, .. } => {
                 llvm_sys::core::LLVMBuildCondBr(
-                    self.llbuilder,
-                    self.values[cond].get(self),
-                    self.blocks[then_dst].unwrap(),
-                    self.blocks[else_dst].unwrap(),
+                    self.llbuilder as *mut _,
+                    self.values[cond].get(self) as *mut _,
+                    self.blocks[then_dst].unwrap() as *mut _,
+                    self.blocks[else_dst].unwrap() as *mut _,
                 );
                 return;
             }
@@ -726,7 +726,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// # Safety
     /// Must not be called when a block that already contains a terminator is selected
     pub unsafe fn store(&self, ptr: &'ll llvm_sys::LLVMValue, val: &'ll llvm_sys::LLVMValue) {
-        LLVMBuildStore(self.llbuilder, val, ptr);
+        LLVMBuildStore(self.llbuilder as *mut _, val as *mut _, ptr as *mut _);
     }
 
     /// # Safety
@@ -809,7 +809,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         rhs: &'ll llvm_sys::LLVMValue,
         predicate: llvm_sys::LLVMRealPredicate,
     ) -> &'ll llvm_sys::LLVMValue {
-        llvm_sys::core::LLVMBuildFCmp(self.llbuilder, predicate, lhs, rhs, UNNAMED)
+        llvm_sys::core::LLVMBuildFCmp(self.llbuilder as *mut _, predicate, lhs as *mut _, rhs as *mut _, UNNAMED)
     }
 
     unsafe fn intrinsic(&mut self, args: &[Value], name: &'static str) -> &'ll llvm_sys::LLVMValue {
@@ -817,6 +817,6 @@ impl<'ll> Builder<'_, '_, 'll> {
             self.cx.intrinsic(name).unwrap_or_else(|| unreachable!("intrinsic {} not found", name));
         let args: ArrayVec<_, 2> = args.iter().map(|arg| self.values[*arg].get(self)).collect();
 
-        llvm_sys::core::LLVMBuildCall2(self.llbuilder, ty, fun, args.as_ptr(), args.len() as u32, UNNAMED)
+        llvm_sys::core::LLVMBuildCall2(self.llbuilder as *mut _, ty as *mut _, fun as *mut _, args.as_ptr() as *mut _, args.len() as u32, UNNAMED)
     }
 }
