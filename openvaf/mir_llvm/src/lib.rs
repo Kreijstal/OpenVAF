@@ -1,8 +1,9 @@
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
-use std::os::raw::c_char;
 use std::path::Path;
 use std::ptr;
+use std::os::raw::{c_char, c_uint, c_ulonglong};
+
 
 use lasso::Rodeo;
 use libc::c_void;
@@ -213,21 +214,128 @@ extern "C" fn diagnostic_handler(info: &llvm_sys::LLVMDiagnosticInfo, _: *mut c_
         llvm_sys::LLVMDiagnosticSeverity::LLVMDSNote => log::trace!("{msg}"),
     }
 }
+
+// Helper function to convert Rust string to C string
+fn to_c_string(s: &str) -> CString {
+    CString::new(s).unwrap()
+}
+
+// Helper function to convert C string to Rust string
+unsafe fn from_c_string(s: *const c_char) -> String {
+    CStr::from_ptr(s).to_string_lossy().into_owned()
+}
+
+pub unsafe fn create_target(
+    triple: &str,
+    cpu: &str,
+    features: &str,
+    level: llvm_sys::target_machine::LLVMCodeGenOptLevel,
+    reloc_mode: llvm_sys::target_machine::LLVMRelocMode,
+    code_model: llvm_sys::target_machine::LLVMCodeModel,
+) -> Result<llvm_sys::target_machine::LLVMTargetMachineRef, String> {
+    let triple_c = to_c_string(triple);
+    let mut target: llvm_sys::target_machine::LLVMTargetRef = ptr::null_mut();
+    let mut error_msg: *mut c_char = ptr::null_mut();
+
+    if llvm_sys::target_machine::LLVMGetTargetFromTriple(triple_c.as_ptr(), &mut target, &mut error_msg) != 0 {
+        let error = from_c_string(error_msg);
+        llvm_sys::core::LLVMDisposeMessage(error_msg);
+        return Err(error);
+    }
+
+    let cpu_c = to_c_string(cpu);
+    let features_c = to_c_string(features);
+
+    let target_machine = llvm_sys::target_machine::LLVMCreateTargetMachine(
+        target,
+        triple_c.as_ptr(),
+        cpu_c.as_ptr(),
+        features_c.as_ptr(),
+        level,
+        reloc_mode,
+        code_model,
+    );
+
+    if target_machine.is_null() {
+        Err(format!("Failed to create target machine for triple: {}", triple))
+    } else {
+        Ok(target_machine)
+    }
+}
+
+pub unsafe fn set_normalized_target(module: llvm_sys::prelude::LLVMModuleRef, triple: &str) {
+    let triple_c = to_c_string(triple);
+    let normalized_triple = llvm_sys::target_machine::LLVMNormalizeTargetTriple(triple_c.as_ptr());
+    llvm_sys::core::LLVMSetTarget(module, normalized_triple);
+    llvm_sys::core::LLVMDisposeMessage(normalized_triple);
+}
+
+pub unsafe fn get_host_cpu_name() -> String {
+    from_c_string(llvm_sys::target_machine::LLVMGetHostCPUName())
+}
+
+pub unsafe fn get_host_cpu_features() -> String {
+    from_c_string(llvm_sys::target_machine::LLVMGetHostCPUFeatures())
+}
+
+pub unsafe fn offset_of_element(
+    td: llvm_sys::target::LLVMTargetDataRef,
+    struct_ty: llvm_sys::prelude::LLVMTypeRef,
+    elem: c_uint,
+) -> c_ulonglong {
+    llvm_sys::target::LLVMOffsetOfElement(td, struct_ty, elem)
+}
+
+pub unsafe fn create_target_data(string_rep: &str) -> llvm_sys::target::LLVMTargetDataRef {
+    let string_rep_c = to_c_string(string_rep);
+    llvm_sys::target::LLVMCreateTargetData(string_rep_c.as_ptr())
+}
+
+pub unsafe fn dispose_target_data(target_data: llvm_sys::target::LLVMTargetDataRef) {
+    llvm_sys::target::LLVMDisposeTargetData(target_data);
+}
+
+pub unsafe fn abi_size_of_type(data: llvm_sys::target::LLVMTargetDataRef, ty: llvm_sys::prelude::LLVMTypeRef) -> c_ulonglong {
+    llvm_sys::target::LLVMABISizeOfType(data, ty)
+}
+
+pub unsafe fn abi_alignment_of_type(data: llvm_sys::target::LLVMTargetDataRef, ty: llvm_sys::prelude::LLVMTypeRef) -> c_uint {
+    llvm_sys::target::LLVMABIAlignmentOfType(data, ty)
+}
+
+pub unsafe fn target_machine_emit_to_file(
+    target: llvm_sys::target_machine::LLVMTargetMachineRef,
+    module: llvm_sys::prelude::LLVMModuleRef,
+    filename: &str,
+    codegen: llvm_sys::target_machine::LLVMCodeGenFileType,
+) -> Result<(), String> {
+    let filename_c = to_c_string(filename);
+    let mut error_msg: *mut c_char = ptr::null_mut();
+
+    if llvm_sys::target_machine::LLVMTargetMachineEmitToFile(target, module, filename_c.as_ptr(), codegen, &mut error_msg) != 0 {
+        let error = from_c_string(error_msg);
+        llvm_sys::core::LLVMDisposeMessage(error_msg);
+        Err(error)
+    } else {
+        Ok(())
+    }
+}
+
+
 pub struct ModuleLlvm {
-    llcx: &'static mut llvm_sys::LLVMContext,
-    // must be a raw pointer because the reference must not outlife self/the context
-    llmod_raw: *const llvm_sys::LLVMModule,
-    tm: &'static mut llvm_sys::LLVMTargetMachine,
-    opt_lvl: LLVMCodeGenOptLevel,
+    llcx: llvm_sys::prelude::LLVMContextRef,
+    llmod_raw: *mut llvm_sys::prelude::LLVMModuleRef,
+    tm: llvm_sys::target_machine::LLVMTargetMachineRef,
+    opt_lvl: llvm_sys::target_machine::LLVMCodeGenOptLevel,
 }
 
 impl ModuleLlvm {
-    unsafe fn new(
+    pub unsafe fn new(
         name: &str,
         target: &Target,
         target_cpu: &str,
         features: &str,
-        opt_lvl: LLVMCodeGenOptLevel,
+        opt_lvl: llvm_sys::target_machine::LLVMCodeGenOptLevel,
     ) -> Result<ModuleLlvm, LLVMString> {
         let llcx = llvm_sys::core::LLVMContextCreate();
         let target_data_layout = target.data_layout.clone();
@@ -239,6 +347,8 @@ impl ModuleLlvm {
 
         let data_layout = CString::new(&*target_data_layout).unwrap();
         llvm_sys::core::LLVMSetDataLayout(llmod, data_layout.as_ptr());
+        
+        // Assuming set_normalized_target is a function you've defined
         set_normalized_target(llmod, &target.llvm_target);
 
         let tm = create_target(
@@ -249,9 +359,13 @@ impl ModuleLlvm {
             llvm_sys::target_machine::LLVMRelocMode::LLVMRelocPIC,
             llvm_sys::target_machine::LLVMCodeModel::LLVMCodeModelDefault,
         )?;
-        let llmod_raw = llmod as _;
 
-        Ok(ModuleLlvm { llcx, llmod_raw, tm, opt_lvl })
+        Ok(ModuleLlvm {
+            llcx,
+            llmod_raw: llmod,
+            tm,
+            opt_lvl,
+        })
     }
 
     pub fn to_str(&self) -> LLVMString {
@@ -289,7 +403,7 @@ pub fn optimize(&self) {
         llvm_sys::core::LLVMRunPassManager(mpm, llmod);
 
         // Clean up
-        llvm_sys::LLVMDisposePassManager(mpm);
+        llvm_sys::core::LLVMDisposePassManager(mpm);
         llvm_sys::LLVMDisposeLoopAnalysisManager(lam);
         llvm_sys::LLVMDisposeCGSCCAnalysisManager(cgam);
         llvm_sys::LLVMDisposeFunctionAnalysisManager(fam);
