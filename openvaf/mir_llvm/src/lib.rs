@@ -10,7 +10,7 @@ use llvm::support::LLVMString;
 pub use llvm::OptLevel;
 use llvm::{
     LLVMDisposeMessage, LLVMGetDiagInfoDescription, LLVMGetDiagInfoSeverity,
-    LLVMGetHostCPUFeatures, LLVMGetHostCPUName, LLVMPassManagerBuilderDispose,
+    LLVMGetHostCPUFeatures, LLVMGetHostCPUName
 };
 use target::spec::Target;
 
@@ -190,27 +190,43 @@ impl ModuleLlvm {
         unsafe { &*self.llmod_raw }
     }
 
-    pub fn optimize(&self) {
-        let llmod = self.llmod();
+pub fn optimize(&self) {
+    let llmod = self.llmod();
 
-        unsafe {
-            let builder = llvm::LLVMPassManagerBuilderCreate();
-            llvm::pass_manager_builder_set_opt_lvl(builder, self.opt_lvl);
-            llvm::LLVMPassManagerBuilderSetSizeLevel(builder, 0);
+    unsafe {
+        // Create the pass builder
+        let pb = llvm::LLVMCreatePassBuilder();
 
-            let fpm = llvm::LLVMCreateFunctionPassManagerForModule(llmod);
-            llvm::LLVMPassManagerBuilderPopulateFunctionPassManager(builder, fpm);
-            llvm::run_function_pass_manager(fpm, llmod);
-            llvm::LLVMDisposePassManager(fpm);
+        // Create the analysis managers
+        let mam = llvm::LLVMCreateModuleAnalysisManager();
+        let fam = llvm::LLVMCreateFunctionAnalysisManager();
+        let cgam = llvm::LLVMCreateCGSCCAnalysisManager();
+        let lam = llvm::LLVMCreateLoopAnalysisManager();
 
-            let mpm = llvm::LLVMCreatePassManager();
-            llvm::LLVMPassManagerBuilderPopulateModulePassManager(builder, mpm);
-            llvm::LLVMRunPassManager(mpm, llmod);
-            llvm::LLVMDisposePassManager(mpm);
+        // Register the analysis passes
+        llvm::LLVMPassBuilderRegisterModuleAnalyses(&*pb, &*mam);
+        llvm::LLVMPassBuilderRegisterFunctionAnalyses(&*pb, &*fam);
+        llvm::LLVMPassBuilderRegisterCGSCCAnalyses(&*pb, &*cgam);
+        llvm::LLVMPassBuilderRegisterLoopAnalyses(&*pb, &*lam);
+        llvm::LLVMPassBuilderCrossRegisterProxies(&*pb, &*lam, &*fam, &*cgam, &*mam);
 
-            LLVMPassManagerBuilderDispose(builder);
-        }
+        // Create the optimization pipeline
+        let mpm = llvm::LLVMPassBuilderBuildPerModuleDefaultPipeline(&*pb, self.opt_lvl);
+
+        // Run the passes
+        llvm::LLVMRunPassManager(mpm, llmod);
+
+        // Clean up
+        llvm::LLVMDisposePassManager(mpm);
+        llvm::LLVMDisposeLoopAnalysisManager(lam);
+        llvm::LLVMDisposeCGSCCAnalysisManager(cgam);
+        llvm::LLVMDisposeFunctionAnalysisManager(fam);
+        llvm::LLVMDisposeModuleAnalysisManager(mam);
+        llvm::LLVMDisposePassBuilder(pb);
     }
+}
+
+
 
     /// Verifies this module and prints out  any errors
     ///

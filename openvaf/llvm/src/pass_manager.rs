@@ -2,81 +2,110 @@ use libc::c_uint;
 
 use crate::module::function_iter;
 use crate::util::InvariantOpaque;
-use crate::{Bool, Module, OptLevel, PassManager, PassManagerBuilder, Value};
+use crate::{Bool, Module, OptLevel, Value};
+
+#[repr(C)]
+pub struct PassBuilder(InvariantOpaque<'static>);
+
+#[repr(C)]
+pub struct ModulePassManager(InvariantOpaque<'static>);
 
 #[repr(C)]
 pub struct FunctionPassManager<'a>(InvariantOpaque<'a>);
 
+#[repr(C)]
+pub struct ModuleAnalysisManager(InvariantOpaque<'static>);
+
+#[repr(C)]
+pub struct FunctionAnalysisManager(InvariantOpaque<'static>);
+
+#[repr(C)]
+pub struct LoopAnalysisManager(InvariantOpaque<'static>);
+
+#[repr(C)]
+pub struct CGSCCAnalysisManager(InvariantOpaque<'static>);
 extern "C" {
 
-    // crate and destroy
-    pub fn LLVMPassManagerBuilderCreate() -> &'static mut PassManagerBuilder;
-    pub fn LLVMPassManagerBuilderDispose(PMB: &'static mut PassManagerBuilder);
+        pub fn LLVMCreatePassBuilder() -> *mut PassBuilder;
+    pub fn LLVMDisposePassBuilder(PB: *mut PassBuilder);
 
-    fn LLVMPassManagerBuilderSetOptLevel(PMB: &PassManagerBuilder, OptLevel: c_uint);
-    pub fn LLVMPassManagerBuilderSetSizeLevel(PMB: &PassManagerBuilder, SizeLevel: c_uint);
-    fn LLVMPassManagerBuilderSLPVectorize(PMB: &PassManagerBuilder);
+    pub fn LLVMPassBuilderCreate() -> &'static mut PassBuilder;
+    pub fn LLVMPassBuilderDispose(PB: &'static mut PassBuilder);
 
-    pub fn LLVMPassManagerBuilderSetDisableUnitAtATime(PMB: &PassManagerBuilder, Value: Bool);
-    pub fn LLVMPassManagerBuilderSetDisableUnrollLoops(PMB: &PassManagerBuilder, Value: Bool);
-    pub fn LLVMPassManagerBuilderSetDisableSimplifyLibCalls(PMB: &PassManagerBuilder, Value: Bool);
-    pub fn LLVMPassManagerBuilderUseInlinerWithThreshold(
-        PMB: &PassManagerBuilder,
-        threshold: c_uint,
+    pub fn LLVMPassBuilderSetOptLevel(PB: &PassBuilder, OptLevel: OptLevel);
+    pub fn LLVMPassBuilderSetSizeLevel(PB: &PassBuilder, SizeLevel: c_uint);
+
+    pub fn LLVMCreateModulePassManager() -> &'static mut ModulePassManager;
+    pub fn LLVMCreateFunctionPassManager(M: &Module) -> &'static mut FunctionPassManager<'_>;
+    pub fn LLVMDisposePassManager(PM: &'static mut ModulePassManager);
+
+    pub fn LLVMCreateModuleAnalysisManager() -> &'static mut ModuleAnalysisManager;
+    pub fn LLVMCreateFunctionAnalysisManager() -> &'static mut FunctionAnalysisManager;
+    pub fn LLVMCreateLoopAnalysisManager() -> &'static mut LoopAnalysisManager;
+    pub fn LLVMCreateCGSCCAnalysisManager() -> &'static mut CGSCCAnalysisManager;
+
+    pub fn LLVMPassBuilderRegisterModuleAnalyses(
+        PB: &PassBuilder,
+        MAM: &ModuleAnalysisManager,
     );
-    pub fn LLVMPassManagerBuilderPopulateFunctionPassManager(
-        PMB: &PassManagerBuilder,
-        PM: &PassManager<'_>,
+    pub fn LLVMPassBuilderRegisterFunctionAnalyses(
+        PB: &PassBuilder,
+        FAM: &FunctionAnalysisManager,
     );
-    pub fn LLVMPassManagerBuilderPopulateModulePassManager(
-        PMB: &PassManagerBuilder,
-        PM: &PassManager<'_>,
+    pub fn LLVMPassBuilderRegisterLoopAnalyses(
+        PB: &PassBuilder,
+        LAM: &LoopAnalysisManager,
     );
-    pub fn LLVMPassManagerBuilderPopulateLTOPassManager(
-        PMB: &mut PassManagerBuilder,
-        PM: &PassManager<'_>,
-        Internalize: Bool,
-        RunInliner: Bool,
+    pub fn LLVMPassBuilderRegisterCGSCCAnalyses(
+        PB: &PassBuilder,
+        CGAM: &CGSCCAnalysisManager,
     );
+
+    pub fn LLVMPassBuilderCrossRegisterProxies(
+        PB: &PassBuilder,
+        LAM: &LoopAnalysisManager,
+        FAM: &FunctionAnalysisManager,
+        CGAM: &CGSCCAnalysisManager,
+        MAM: &ModuleAnalysisManager,
+    );
+
+    pub fn LLVMPassBuilderBuildPerModuleDefaultPipeline(
+        PB: &PassBuilder,
+        OptLevel: OptLevel,
+    ) -> &'static mut ModulePassManager;
+
+    pub fn LLVMRunPassManager(MPM: &ModulePassManager, M: &Module);
+
+    // Additional functions for disposal
+    pub fn LLVMDisposeModuleAnalysisManager(MAM: &'static mut ModuleAnalysisManager);
+    pub fn LLVMDisposeFunctionAnalysisManager(FAM: &'static mut FunctionAnalysisManager);
+    pub fn LLVMDisposeCGSCCAnalysisManager(CGAM: &'static mut CGSCCAnalysisManager);
+    pub fn LLVMDisposeLoopAnalysisManager(LAM: &'static mut LoopAnalysisManager);
 }
 
 /// # Safety
-/// This should always be save but this low level wrapper purposefully refrains from making Safety
-/// garantuees
-pub unsafe fn pass_manager_builder_set_opt_lvl(pmb: &PassManagerBuilder, opt_lvl: OptLevel) {
-    LLVMPassManagerBuilderSetOptLevel(pmb, opt_lvl as c_uint);
-    if opt_lvl > OptLevel::Less {
-        LLVMPassManagerBuilderSLPVectorize(pmb);
-    }
-}
-
-// Core->Pass managers
-extern "C" {
-    /// Creates a pass manager.
-    pub fn LLVMCreatePassManager() -> &'static mut PassManager<'static>;
-
-    /// Creates a function-by-function pass manager
-    pub fn LLVMCreateFunctionPassManagerForModule<'a>(M: &'a Module) -> &'a mut PassManager<'a>;
-
-    /// Disposes a pass manager.
-    pub fn LLVMDisposePassManager<'a>(PM: &'a mut PassManager<'a>);
-
-    /// Runs a pass manager on a module.
-    pub fn LLVMRunPassManager(PM: &PassManager<'static>, M: &Module) -> Bool;
-
-    fn LLVMInitializeFunctionPassManager(FPM: &PassManager<'_>) -> Bool;
-    fn LLVMRunFunctionPassManager<'a>(FPM: &PassManager<'a>, F: &'a Value) -> Bool;
-    fn LLVMFinalizeFunctionPassManager(FPM: &PassManager<'_>) -> Bool;
-}
-
-/// # Safety
-/// This function calls the LLVM C Api.
+/// This function calls the LLVM C API.
 /// If the module or its contents have been incorrectly constructed this can cause UB
-/// If the pass manager is not a function pass manager but a global pass manager this will cause UB
-pub unsafe fn run_function_pass_manager<'a>(fpm: &PassManager<'a>, module: &'a Module) {
-    LLVMInitializeFunctionPassManager(fpm);
-    for fun in function_iter(module) {
-        LLVMRunFunctionPassManager(fpm, fun);
-    }
-    LLVMFinalizeFunctionPassManager(fpm);
+pub unsafe fn build_and_run_optimization_pipeline(module: &Module, opt_level: OptLevel) {
+    let pb = LLVMPassBuilderCreate();
+    LLVMPassBuilderSetOptLevel(pb, opt_level);
+
+    let mam = LLVMCreateModuleAnalysisManager();
+    let fam = LLVMCreateFunctionAnalysisManager();
+    let lam = LLVMCreateLoopAnalysisManager();
+    let cgam = LLVMCreateCGSCCAnalysisManager();
+
+    LLVMPassBuilderRegisterModuleAnalyses(pb, mam);
+    LLVMPassBuilderRegisterFunctionAnalyses(pb, fam);
+    LLVMPassBuilderRegisterLoopAnalyses(pb, lam);
+    LLVMPassBuilderRegisterCGSCCAnalyses(pb, cgam);
+
+    LLVMPassBuilderCrossRegisterProxies(pb, lam, fam, cgam, mam);
+
+    let mpm = LLVMPassBuilderBuildPerModuleDefaultPipeline(pb, opt_level);
+
+    LLVMRunPassManager(mpm, module);
+
+    LLVMDisposePassManager(mpm);
+    LLVMPassBuilderDispose(pb);
 }

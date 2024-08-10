@@ -5,7 +5,6 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 #include <iostream>
 #include <mutex>
@@ -36,20 +35,12 @@ void LLVMPurgeAttrs(LLVMValueRef V) {
   }
 }
 
-// Keep this function for backwards compatibility
-void LLVMPassManagerBuilderSLPVectorize(LLVMPassManagerBuilderRef PMB) {
-  PassManagerBuilder *Builder = unwrap(PMB);
-  Builder->SLPVectorize = true;
-}
-
-// New function to add SLPVectorizer pass using the new pass manager
 void addSLPVectorizerPass(ModulePassManager &MPM) {
   FunctionPassManager FPM;
   FPM.addPass(SLPVectorizerPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 }
 
-// New function to set up the optimization pipeline using the new pass manager
 void setupOptimizationPipeline(Module &M) {
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
