@@ -720,7 +720,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         let res = self.intrinsic(args, "strcmp");
         let predicate = if invert { llvm_sys::LLVMIntPredicate::IntNE } else { llvm_sys::LLVMIntPredicate::IntEQ };
 
-        LLVMBuildICmp(self.llbuilder, predicate, res, self.cx.const_int(0), UNNAMED)
+        LLVMBuildICmp(self.llbuilder as *mut _, predicate, res, self.cx.const_int(0) as *mut _, UNNAMED)
     }
 
     /// # Safety
