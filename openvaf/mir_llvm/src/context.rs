@@ -38,7 +38,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         // target_cpu: &'a str,
     ) -> CodegenCx<'a, 'll> {
         // let ty_isize =
-        //     unsafe { llvm_sys::LLVMIntTypeInContext(llvm_module.llcx, target.pointer_width) };
+        //     unsafe { llvm_sys::core::LLVMIntTypeInContext(llvm_module.llcx, target.pointer_width) };
         CodegenCx {
             llmod: llvm_module.llmod(),
             llcx: llvm_module.llcx,
@@ -65,22 +65,22 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
                 bitcode.as_ptr() as *const c_char,
                 bitcode.len(),
                 sym.as_ptr(),
-                llvm_sys::False,
+                0,
             );
             let mut module = None;
             assert!(
-                LLVMParseBitcodeInContext2(self.llcx, buff, &mut module) == llvm_sys::False,
+                LLVMParseBitcodeInContext2(self.llcx, buff, &mut module) == 0,
                 "failed to parse bitcode"
             );
             assert!(
-                LLVMLinkModules2(self.llmod, module.unwrap()) == llvm_sys::False,
+                LLVMLinkModules2(self.llmod, module.unwrap()) == 0,
                 "failed to link parsed bitcode"
             );
         }
     }
 
     pub fn to_str(&self) -> LLVMString {
-        unsafe { LLVMString::new(llvm_sys::LLVMPrintModuleToString(self.llmod)) }
+        unsafe { LLVMString::new(llvm_sys::core::LLVMPrintModuleToString(self.llmod)) }
     }
 
     pub fn const_str_uninterned(&self, lit: &str) -> &'ll Value {
@@ -98,11 +98,11 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         // assert!(!val.contains(&b'\0'));
         // val.push(b'\0');
         let val = unsafe {
-            llvm_sys::LLVMConstStringInContext(
+            llvm_sys::core::LLVMConstStringInContext(
                 self.llcx,
                 val.as_ptr() as *const c_char,
                 val.len() as c_uint,
-                false as llvm_sys::Bool,
+                false as llvm_sys::LLVMBool,
             )
         };
         let sym = self.generate_local_symbol_name("str");
@@ -112,9 +112,9 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
             .unwrap_or_else(|| unreachable!("symbol {} already defined", sym));
 
         unsafe {
-            llvm_sys::LLVMSetInitializer(global, val);
-            llvm_sys::LLVMSetGlobalConstant(global, llvm_sys::True);
-            llvm_sys::LLVMSetLinkage(global, llvm_sys::LLVMLinkage::Internal);
+            llvm_sys::core::LLVMSetInitializer(global, val);
+            llvm_sys::core::LLVMSetGlobalConstant(global, 1);
+            llvm_sys::core::LLVMSetLinkage(global, llvm_sys::LLVMLinkage::Internal);
         }
         self.str_lit_cache.borrow_mut().insert(lit, global);
         global

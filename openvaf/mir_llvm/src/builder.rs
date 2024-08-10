@@ -522,7 +522,7 @@ impl<'ll> Builder<'_, '_, 'll> {
             }
             Opcode::BIcast => {
                 let arg = self.values[args[0]].get(self);
-                llvm_sys::core::LLVMBuildIntCast2(self.llbuilder, arg, self.cx.ty_int(), crate::False, UNNAMED)
+                llvm_sys::core::LLVMBuildIntCast2(self.llbuilder, arg, self.cx.ty_int(), 0, UNNAMED)
             }
             Opcode::IBcast => self.build_int_cmp(&[args[0], ZERO], llvm_sys::LLVMIntPredicate::IntNE),
             Opcode::FBcast => self.build_real_cmp(&[args[0], F_ZERO], llvm_sys::LLVMRealPredicate::RealONE),
@@ -694,12 +694,26 @@ impl<'ll> Builder<'_, '_, 'll> {
                 | Opcode::Atanh
                 | Opcode::Pow
         ) {
-            match fast_math_mode {
-                FastMathMode::Full => llvm_sys::core::LLVMSetFastMath(val),
-                FastMathMode::Partial => llvm_sys::core::LLVMSetPartialFastMath(val),
-                FastMathMode::Disabled => (),
+              match fast_math_mode {
+        FastMathMode::Full => {
+            // Use all fast-math flags
+            let fast_math_flags = llvm_sys::LLVMFastMathFlags::LLVMFastMathFlagsFast;
+            unsafe {
+                llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
             }
         }
+        FastMathMode::Partial => {
+            // Set specific fast-math flags
+            let fast_math_flags = llvm_sys::LLVMFastMathFlags::LLVMFastMathFlagAllowReassoc
+                | llvm_sys::LLVMFastMathFlags::LLVMFastMathFlagAllowReciprocal
+                | llvm_sys::LLVMFastMathFlags::LLVMFastMathFlagAllowContract;
+            unsafe {
+                llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
+            }
+        }
+        FastMathMode::Disabled => (), // No fast-math flags
+    }
+            }
     }
 
     unsafe fn strcmp(&mut self, args: &[Value], invert: bool) -> &'ll llvm_sys::LLVMValue {

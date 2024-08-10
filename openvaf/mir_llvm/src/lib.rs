@@ -203,7 +203,7 @@ impl Drop for LLVMBackend<'_> {
     fn drop(&mut self) {}
 }
 
-extern "C" fn diagnostic_handler(info: &llvm_sys::DiagnosticInfo, _: *mut c_void) {
+extern "C" fn diagnostic_handler(info: &llvm_sys::LLVMDiagnosticInfo, _: *mut c_void) {
     let severity = unsafe { LLVMGetDiagInfoSeverity(info) };
     let msg = unsafe { LLVMString::new(LLVMGetDiagInfoDescription(info)) };
     match severity {
@@ -286,7 +286,7 @@ pub fn optimize(&self) {
         let mpm = llvm_sys::LLVMPassBuilderBuildPerModuleDefaultPipeline(&*pb, self.opt_lvl);
 
         // Run the passes
-        llvm_sys::LLVMRunPassManager(mpm, llmod);
+        llvm_sys::core::LLVMRunPassManager(mpm, llmod);
 
         // Clean up
         llvm_sys::LLVMDisposePassManager(mpm);
@@ -306,8 +306,8 @@ pub fn optimize(&self) {
     /// Whether this module is valid (true if valid)
     pub fn verify_and_print(&self) -> bool {
         unsafe {
-            llvm_sys::LLVMVerifyModule(self.llmod(), llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction, None)
-                == llvm_sys::False
+            llvm_sys::analysis::LLVMVerifyModule(self.llmod(), llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction, None)
+                == 0
         }
     }
 
@@ -318,11 +318,11 @@ pub fn optimize(&self) {
     pub fn verify(&self) -> Option<LLVMString> {
         unsafe {
             let mut res = MaybeUninit::uninit();
-            if llvm_sys::LLVMVerifyModule(
+            if llvm_sys::analysis::LLVMVerifyModule(
                 self.llmod(),
                 llvm_sys::analysis::LLVMVerifierFailureAction::LLVMReturnStatusAction,
                 Some(&mut res),
-            ) == llvm_sys::True
+            ) == 1
             {
                 Some(res.assume_init())
             } else {
@@ -338,7 +338,7 @@ pub fn optimize(&self) {
         let return_code = unsafe {
             // REVIEW: Why does LLVM need a mutable ptr to path...?
 
-            llvm_sys::LLVMTargetMachineEmitToFile(
+            llvm_sys::target_machine::LLVMTargetMachineEmitToFile(
                 self.tm,
                 self.llmod(),
                 path.as_ptr(),
@@ -360,8 +360,8 @@ pub fn optimize(&self) {
 impl Drop for ModuleLlvm {
     fn drop(&mut self) {
         unsafe {
-            llvm_sys::LLVMDisposeTargetMachine(&mut *(self.tm as *mut _));
-            llvm_sys::LLVMContextDispose(&mut *(self.llcx as *mut _));
+            llvm_sys::target_machine::LLVMDisposeTargetMachine(&mut *(self.tm as *mut _));
+            llvm_sys::core::LLVMContextDispose(&mut *(self.llcx as *mut _));
         }
     }
 }

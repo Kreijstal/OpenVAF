@@ -23,10 +23,10 @@ pub fn declare_raw_fn<'ll>(
 ) -> &'ll Value {
     let name = CString::new(name).unwrap();
     unsafe {
-        let llfn = llvm_sys::LLVMAddFunction(cx.llmod, name.as_ptr() as *const c_char, ty);
+        let llfn = llvm_sys::core::LLVMAddFunction(cx.llmod, name.as_ptr() as *const c_char, ty);
 
-        llvm_sys::LLVMSetFunctionCallConv(llfn, callconv);
-        llvm_sys::LLVMSetUnnamedAddress(llfn, unnamed);
+        llvm_sys::core::LLVMSetFunctionCallConv(llfn, callconv);
+        llvm_sys::core::LLVMSetUnnamedAddress(llfn, unnamed);
         llfn
     }
 }
@@ -62,7 +62,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
             llvm_sys::LLVMUnnamedAddr::Global,
             fn_type,
         );
-        unsafe { llvm_sys::LLVMSetLinkage(fun, llvm_sys::LLVMLinkage::Internal) }
+        unsafe { llvm_sys::core::LLVMSetLinkage(fun, llvm_sys::LLVMLinkage::Internal) }
         fun
     }
 
@@ -76,7 +76,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
             llvm_sys::LLVMUnnamedAddr::Global,
             fn_type,
         );
-        unsafe { llvm_sys::LLVMSetLinkage(fun, llvm_sys::LLVMLinkage::Internal) }
+        unsafe { llvm_sys::core::LLVMSetLinkage(fun, llvm_sys::LLVMLinkage::Internal) }
         fun
     }
 
@@ -89,7 +89,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
             None
         } else {
             let name = CString::new(name).unwrap();
-            let global = unsafe { llvm_sys::LLVMAddGlobal(self.llmod, ty, name.as_ptr()) };
+            let global = unsafe { llvm_sys::core::LLVMAddGlobal(self.llmod, ty, name.as_ptr()) };
             Some(global)
         }
     }
@@ -99,8 +99,8 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
     /// Use this function when you intend to define a global without a name.
     pub fn define_private_global(&self, ty: &'ll Type) -> &'ll Value {
         unsafe {
-            let global = llvm_sys::LLVMAddGlobal(self.llmod, ty, llvm_sys::UNNAMED);
-            llvm_sys::LLVMSetLinkage(global, llvm_sys::LLVMLinkage::PrivateLinkage);
+            let global = llvm_sys::core::LLVMAddGlobal(self.llmod, ty, crate::UNNAMED);
+            llvm_sys::core::LLVMSetLinkage(global, llvm_sys::LLVMLinkage::PrivateLinkage);
             global
         }
     }
@@ -108,14 +108,14 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
     /// Gets declared value by name.
     pub fn get_declared_value(&self, name: &str) -> Option<&'ll Value> {
         let name = CString::new(name).unwrap();
-        unsafe { llvm_sys::LLVMGetNamedGlobal(self.llmod, name.as_ptr()) }
+        unsafe { llvm_sys::core::LLVMGetNamedGlobal(self.llmod, name.as_ptr()) }
     }
 
     /// Gets defined or externally defined (AvailableExternally linkage) value by
     /// name.
     pub fn get_defined_value(&self, name: &str) -> Option<&'ll Value> {
         self.get_declared_value(name).and_then(|val| {
-            let declaration = unsafe { llvm_sys::LLVMIsDeclaration(val) != False };
+            let declaration = unsafe { llvm_sys::core::LLVMIsDeclaration(val) != False };
             if !declaration {
                 Some(val)
             } else {
@@ -136,13 +136,13 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
                 .define_global(name, ty)
                 .unwrap_or_else(|| unreachable!("symbol '{}' already defined", name));
 
-            llvm_sys::LLVMSetInitializer(res, val);
-            llvm_sys::LLVMSetLinkage(res, llvm_sys::LLVMLinkage::ExternalLinkage);
-            llvm_sys::LLVMSetUnnamedAddress(res, llvm_sys::LLVMUnnamedAddr::No);
-            llvm_sys::LLVMSetDLLStorageClass(res, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
+            llvm_sys::core::LLVMSetInitializer(res, val);
+            llvm_sys::core::LLVMSetLinkage(res, llvm_sys::LLVMLinkage::ExternalLinkage);
+            llvm_sys::core::LLVMSetUnnamedAddress(res, llvm_sys::LLVMUnnamedAddr::No);
+            llvm_sys::core::LLVMSetDLLStorageClass(res, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
 
             if is_const {
-                llvm_sys::LLVMSetGlobalConstant(res, llvm_sys::True);
+                llvm_sys::core::LLVMSetGlobalConstant(res, 1);
             }
 
             res
@@ -152,9 +152,9 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
     pub fn global_const(&self, ty: &'ll Type, val: &'ll Value) -> &'ll Value {
         unsafe {
             let res = self.define_private_global(ty);
-            llvm_sys::LLVMSetInitializer(res, val);
-            llvm_sys::LLVMSetUnnamedAddress(res, llvm_sys::LLVMUnnamedAddr::No);
-            llvm_sys::LLVMSetGlobalConstant(res, llvm_sys::True);
+            llvm_sys::core::LLVMSetInitializer(res, val);
+            llvm_sys::core::LLVMSetUnnamedAddress(res, llvm_sys::LLVMUnnamedAddr::No);
+            llvm_sys::core::LLVMSetGlobalConstant(res, 1);
             res
         }
     }
@@ -177,9 +177,9 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
             .unwrap_or_else(|| unreachable!("symbol {} already defined", sym));
 
         unsafe {
-            llvm_sys::LLVMSetInitializer(global, val);
-            llvm_sys::LLVMSetGlobalConstant(global, llvm_sys::True);
-            llvm_sys::LLVMSetLinkage(global, llvm_sys::LLVMLinkage::Internal);
+            llvm_sys::core::LLVMSetInitializer(global, val);
+            llvm_sys::core::LLVMSetGlobalConstant(global, 1);
+            llvm_sys::core::LLVMSetLinkage(global, llvm_sys::LLVMLinkage::Internal);
         }
         global
     }
@@ -220,9 +220,9 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
             .unwrap_or_else(|| unreachable!("symbol '{}' already defined", name));
 
         unsafe {
-            let init = llvm_sys::LLVMConstNull(ty);
-            llvm_sys::LLVMSetInitializer(arr, init);
-            llvm_sys::LLVMSetLinkage(arr, llvm_sys::LLVMLinkage::ExternalLinkage);
+            let init = llvm_sys::core::LLVMConstNull(ty);
+            llvm_sys::core::LLVMSetInitializer(arr, init);
+            llvm_sys::core::LLVMSetLinkage(arr, llvm_sys::LLVMLinkage::ExternalLinkage);
         }
 
         if add_cnt {
@@ -233,9 +233,9 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
 
             unsafe {
                 let init = self.const_usize(len);
-                llvm_sys::LLVMSetInitializer(arr_len, init);
-                llvm_sys::LLVMSetGlobalConstant(arr_len, llvm_sys::True);
-                llvm_sys::LLVMSetLinkage(arr_len, llvm_sys::LLVMLinkage::ExternalLinkage);
+                llvm_sys::core::LLVMSetInitializer(arr_len, init);
+                llvm_sys::core::LLVMSetGlobalConstant(arr_len, 1);
+                llvm_sys::core::LLVMSetLinkage(arr_len, llvm_sys::LLVMLinkage::ExternalLinkage);
             }
         }
 
