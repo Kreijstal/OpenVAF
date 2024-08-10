@@ -4,18 +4,22 @@ use std::ffi::CString;
 use ahash::AHashMap;
 use lasso::{Rodeo, Spur};
 use libc::{c_char, c_uint};
-use llvm::support::LLVMString;
-use llvm::{
-    LLVMCreateMemoryBufferWithMemoryRange, LLVMGetNamedFunction, LLVMLinkModules2,
-    LLVMParseBitcodeInContext2, Type, Value,
+use crate::LLVMString;
+use llvm_sys::linker::LLVMLinkModules2;
+use llvm_sys::bit_reader::LLVMParseBitcodeInContext2;
+use llvm_sys::LLVMType as Type;
+use llvm_sys::LLVMValue as Value;
+//use llvm_sys::LLVMBool; // For False, if applicable
+use llvm_sys::core::{
+    LLVMCreateMemoryBufferWithMemoryRange, LLVMGetNamedFunction
 };
 use target::spec::Target;
 
 use crate::types::Types;
 
 pub struct CodegenCx<'a, 'll> {
-    pub llmod: &'ll llvm::Module,
-    pub llcx: &'ll llvm::Context,
+    pub llmod: &'ll llvm_sys::Module,
+    pub llcx: &'ll llvm_sys::Context,
 
     pub target: &'a Target,
     // pub target_cpu: &'a str,
@@ -34,7 +38,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         // target_cpu: &'a str,
     ) -> CodegenCx<'a, 'll> {
         // let ty_isize =
-        //     unsafe { llvm::LLVMIntTypeInContext(llvm_module.llcx, target.pointer_width) };
+        //     unsafe { llvm_sys::LLVMIntTypeInContext(llvm_module.llcx, target.pointer_width) };
         CodegenCx {
             llmod: llvm_module.llmod(),
             llcx: llvm_module.llcx,
@@ -48,7 +52,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         }
     }
 
-    pub fn get_func_by_name(&self, name: &str) -> Option<&'ll llvm::Value> {
+    pub fn get_func_by_name(&self, name: &str) -> Option<&'ll llvm_sys::Value> {
         let name = CString::new(name).unwrap();
         unsafe { LLVMGetNamedFunction(self.llmod, name.as_ptr()) }
     }
@@ -61,22 +65,22 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
                 bitcode.as_ptr() as *const c_char,
                 bitcode.len(),
                 sym.as_ptr(),
-                llvm::False,
+                llvm_sys::False,
             );
             let mut module = None;
             assert!(
-                LLVMParseBitcodeInContext2(self.llcx, buff, &mut module) == llvm::False,
+                LLVMParseBitcodeInContext2(self.llcx, buff, &mut module) == llvm_sys::False,
                 "failed to parse bitcode"
             );
             assert!(
-                LLVMLinkModules2(self.llmod, module.unwrap()) == llvm::False,
+                LLVMLinkModules2(self.llmod, module.unwrap()) == llvm_sys::False,
                 "failed to link parsed bitcode"
             );
         }
     }
 
     pub fn to_str(&self) -> LLVMString {
-        unsafe { LLVMString::new(llvm::LLVMPrintModuleToString(self.llmod)) }
+        unsafe { LLVMString::new(llvm_sys::LLVMPrintModuleToString(self.llmod)) }
     }
 
     pub fn const_str_uninterned(&self, lit: &str) -> &'ll Value {
@@ -94,11 +98,11 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         // assert!(!val.contains(&b'\0'));
         // val.push(b'\0');
         let val = unsafe {
-            llvm::LLVMConstStringInContext(
+            llvm_sys::LLVMConstStringInContext(
                 self.llcx,
                 val.as_ptr() as *const c_char,
                 val.len() as c_uint,
-                false as llvm::Bool,
+                false as llvm_sys::Bool,
             )
         };
         let sym = self.generate_local_symbol_name("str");
@@ -108,9 +112,9 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
             .unwrap_or_else(|| unreachable!("symbol {} already defined", sym));
 
         unsafe {
-            llvm::LLVMSetInitializer(global, val);
-            llvm::LLVMSetGlobalConstant(global, llvm::True);
-            llvm::LLVMSetLinkage(global, llvm::Linkage::Internal);
+            llvm_sys::LLVMSetInitializer(global, val);
+            llvm_sys::LLVMSetGlobalConstant(global, llvm_sys::True);
+            llvm_sys::LLVMSetLinkage(global, llvm_sys::Linkage::Internal);
         }
         self.str_lit_cache.borrow_mut().insert(lit, global);
         global

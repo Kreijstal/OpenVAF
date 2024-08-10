@@ -11,7 +11,7 @@ use std::ops::Deref;
 use std::error::Error;
 
 use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
-
+pub const UNNAMED: *const c_char = b"\0".as_ptr() as *const c_char;
 #[derive(Eq)]
 #[repr(transparent)]
 pub struct LLVMString {
@@ -76,10 +76,11 @@ impl Drop for LLVMString {
         }
     }
 }
-pub use llvm_sys::OptLevel;
-use llvm_sys::core::{
-    LLVMGetDiagInfoDescription, LLVMGetDiagInfoSeverity,
-    LLVMGetHostCPUFeatures, LLVMGetHostCPUName
+
+use llvm_sys::target_machine::{LLVMCodeGenOptLevel,LLVMGetHostCPUFeatures, LLVMGetHostCPUName
+};
+    use llvm_sys::core::{
+    LLVMGetDiagInfoDescription, LLVMGetDiagInfoSeverity
 };
 use target::spec::Target;
 
@@ -96,7 +97,6 @@ mod tests;
 pub use builder::{Builder, BuilderVal, MemLoc};
 pub use callbacks::CallbackFun;
 pub use context::CodegenCx;
-
 pub struct LLVMBackend<'t> {
     target: &'t Target,
     target_cpu: String,
@@ -174,7 +174,7 @@ impl<'t> LLVMBackend<'t> {
     pub unsafe fn new_module(
         &self,
         name: &str,
-        opt_lvl: OptLevel,
+        opt_lvl: LLVMCodeGenOptLevel,
     ) -> Result<ModuleLlvm, LLVMString> {
         ModuleLlvm::new(name, self.target, &self.target_cpu, &self.features, opt_lvl)
     }
@@ -190,10 +190,12 @@ impl<'t> LLVMBackend<'t> {
     ) -> CodegenCx<'a, 'll> {
         CodegenCx::new(literals, module, self.target)
     }
+
     pub fn target(&self) -> &'t Target {
         self.target
     }
 }
+
 
 impl Drop for LLVMBackend<'_> {
     fn drop(&mut self) {}
@@ -209,13 +211,12 @@ extern "C" fn diagnostic_handler(info: &llvm_sys::DiagnosticInfo, _: *mut c_void
         llvm_sys::DiagnosticSeverity::Note => log::trace!("{msg}"),
     }
 }
-
 pub struct ModuleLlvm {
-    llcx: &'static mut llvm_sys::Context,
+    llcx: &'static mut llvm_sys::LLVMContext,
     // must be a raw pointer because the reference must not outlife self/the context
-    llmod_raw: *const llvm_sys::Module,
-    tm: &'static mut llvm_sys::TargetMachine,
-    opt_lvl: OptLevel,
+    llmod_raw: *const llvm_sys::LLVMModule,
+    tm: &'static mut llvm_sys::LLVMTargetMachine,
+    opt_lvl: LLVMCodeGenOptLevel,
 }
 
 impl ModuleLlvm {
@@ -224,27 +225,27 @@ impl ModuleLlvm {
         target: &Target,
         target_cpu: &str,
         features: &str,
-        opt_lvl: OptLevel,
+        opt_lvl: LLVMCodeGenOptLevel,
     ) -> Result<ModuleLlvm, LLVMString> {
-        let llcx = llvm_sys::LLVMContextCreate();
+        let llcx = llvm_sys::core::LLVMContextCreate();
         let target_data_layout = target.data_layout.clone();
 
-        llvm_sys::LLVMContextSetDiagnosticHandler(llcx, Some(diagnostic_handler), ptr::null_mut());
+        llvm_sys::core::LLVMContextSetDiagnosticHandler(llcx, Some(diagnostic_handler), ptr::null_mut());
 
         let name = CString::new(name).unwrap();
-        let llmod = llvm_sys::LLVMModuleCreateWithNameInContext(name.as_ptr(), llcx);
+        let llmod = llvm_sys::core::LLVMModuleCreateWithNameInContext(name.as_ptr(), llcx);
 
         let data_layout = CString::new(&*target_data_layout).unwrap();
-        llvm_sys::LLVMSetDataLayout(llmod, data_layout.as_ptr());
-        llvm_sys::set_normalized_target(llmod, &target.llvm_target);
+        llvm_sys::core::LLVMSetDataLayout(llmod, data_layout.as_ptr());
+        set_normalized_target(llmod, &target.llvm_target);
 
-        let tm = llvm_sys::create_target(
+        let tm = create_target(
             &target.llvm_target,
             target_cpu,
             features,
             opt_lvl,
-            llvm_sys::RelocMode::PIC,
-            llvm_sys::CodeModel::Default,
+            llvm_sys::target_machine::LLVMRelocMode::LLVMRelocPIC,
+            llvm_sys::target_machine::LLVMCodeModel::LLVMCodeModelDefault,
         )?;
         let llmod_raw = llmod as _;
 
@@ -252,10 +253,10 @@ impl ModuleLlvm {
     }
 
     pub fn to_str(&self) -> LLVMString {
-        unsafe { LLVMString::new(llvm_sys::LLVMPrintModuleToString(self.llmod())) }
+        unsafe { LLVMString::new(llvm_sys::core::LLVMPrintModuleToString(self.llmod())) }
     }
 
-    pub fn llmod(&self) -> &llvm_sys::Module {
+    pub fn llmod(&self) -> &llvm_sys::LLVMModule {
         unsafe { &*self.llmod_raw }
     }
 
