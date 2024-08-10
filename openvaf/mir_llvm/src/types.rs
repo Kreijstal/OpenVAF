@@ -31,7 +31,8 @@ impl<'ll> Types<'ll> {
             // we are using opaque pointers, with old llvm version that plain
             // means always using char pointers, with newer llvm version the
             // type is ignored anyway
-            let ptr = llvm_sys::LLVMPointerType(char, llvm_sys::AddressSpace::DATA);
+            //let ptr = llvm_sys::LLVMPointerType(char, llvm_sys::AddressSpace::DATA);
+            let ptr = llvm_sys::LLVMPointerType(char, 0); // 0 represents the default (DATA) address space
             let size = llvm_sys::LLVMIntTypeInContext(llcx, pointer_width);
             Types {
                 double: llvm_sys::LLVMDoubleTypeInContext(llcx),

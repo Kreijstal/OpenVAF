@@ -114,7 +114,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         unsafe {
             llvm_sys::LLVMSetInitializer(global, val);
             llvm_sys::LLVMSetGlobalConstant(global, llvm_sys::True);
-            llvm_sys::LLVMSetLinkage(global, llvm_sys::Linkage::Internal);
+            llvm_sys::LLVMSetLinkage(global, llvm_sys::LLVMLinkage::Internal);
         }
         self.str_lit_cache.borrow_mut().insert(lit, global);
         global

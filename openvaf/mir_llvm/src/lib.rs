@@ -205,10 +205,10 @@ extern "C" fn diagnostic_handler(info: &llvm_sys::DiagnosticInfo, _: *mut c_void
     let severity = unsafe { LLVMGetDiagInfoSeverity(info) };
     let msg = unsafe { LLVMString::new(LLVMGetDiagInfoDescription(info)) };
     match severity {
-        llvm_sys::DiagnosticSeverity::Error => log::error!("{msg}"),
-        llvm_sys::DiagnosticSeverity::Warning => log::warn!("{msg}"),
-        llvm_sys::DiagnosticSeverity::Remark => log::debug!("{msg}"),
-        llvm_sys::DiagnosticSeverity::Note => log::trace!("{msg}"),
+        llvm_sys::LLVMDiagnosticSeverity::LLVMDSError => log::error!("{msg}"),
+        llvm_sys::LLVMDiagnosticSeverity::LLVMDSWarning => log::warn!("{msg}"),
+        llvm_sys::LLVMDiagnosticSeverity::LLVMDSRemark => log::debug!("{msg}"),
+        llvm_sys::LLVMDiagnosticSeverity::LLVMDSNote => log::trace!("{msg}"),
     }
 }
 pub struct ModuleLlvm {
