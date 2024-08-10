@@ -316,10 +316,10 @@ impl<'ll> Builder<'_, '_, 'll> {
         operands: &[&'ll llvm_sys::LLVMValue],
     ) -> &'ll llvm_sys::LLVMValue {
         let res = llvm_sys::core::LLVMBuildCall2(
-            self.llbuilder,
-            fun_ty,
-            fun,
-            operands.as_ptr(),
+            self.llbuilder as *mut _,
+            fun_ty as *mut _,
+            fun as *mut _,
+            operands.as_ptr() as *mut _,
             operands.len() as u32,
             UNNAMED,
         );
