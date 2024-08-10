@@ -6,10 +6,81 @@ use std::ptr;
 
 use lasso::Rodeo;
 use libc::c_void;
-use llvm::support::LLVMString;
-pub use llvm::OptLevel;
-use llvm::{
-    LLVMDisposeMessage, LLVMGetDiagInfoDescription, LLVMGetDiagInfoSeverity,
+use std::ffi::{CStr, CString};
+use std::fmt::{self, Debug, Display, Formatter};
+use std::ops::Deref;
+use std::os::raw::c_char;
+use std::error::Error;
+
+use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
+
+#[derive(Eq)]
+#[repr(transparent)]
+pub struct LLVMString {
+    ptr: *const c_char,
+}
+
+impl LLVMString {
+    pub unsafe fn new(ptr: *const c_char) -> Self {
+        LLVMString { ptr }
+    }
+
+    pub(crate) fn create_from_str(string: &str) -> LLVMString {
+        let msg = CString::new(string).unwrap();
+        unsafe { LLVMString::new(LLVMCreateMessage(msg.as_ptr())) }
+    }
+
+    pub fn create_from_c_str(string: &CStr) -> LLVMString {
+        unsafe { LLVMString::new(LLVMCreateMessage(string.as_ptr())) }
+    }
+}
+
+impl Deref for LLVMString {
+    type Target = CStr;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { CStr::from_ptr(self.ptr) }
+    }
+}
+
+impl Debug for LLVMString {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.deref())
+    }
+}
+
+impl Display for LLVMString {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.deref().to_string_lossy())
+    }
+}
+
+impl PartialEq for LLVMString {
+    fn eq(&self, other: &LLVMString) -> bool {
+        **self == **other
+    }
+}
+
+impl Error for LLVMString {
+    fn description(&self) -> &str {
+        self.to_str().expect("Could not convert LLVMString to str (likely invalid unicode)")
+    }
+
+    fn cause(&self) -> Option<&dyn Error> {
+        None
+    }
+}
+
+impl Drop for LLVMString {
+    fn drop(&mut self) {
+        unsafe {
+            LLVMDisposeMessage(self.ptr as *mut _);
+        }
+    }
+}
+pub use llvm_sys::OptLevel;
+use llvm_sys::core::{
+    LLVMGetDiagInfoDescription, LLVMGetDiagInfoSeverity,
     LLVMGetHostCPUFeatures, LLVMGetHostCPUName
 };
 use target::spec::Target;
@@ -94,7 +165,7 @@ impl<'t> LLVMBackend<'t> {
         features.extend(target_features.iter().cloned());
 
         // TODO add target options here if we ever have any
-        llvm::initialization::init(cg_opts, &[]);
+        llvm_sys::initialization::init(cg_opts, &[]);
         LLVMBackend { target, target_cpu, features: features.join(",") }
     }
 
@@ -130,22 +201,22 @@ impl Drop for LLVMBackend<'_> {
     fn drop(&mut self) {}
 }
 
-extern "C" fn diagnostic_handler(info: &llvm::DiagnosticInfo, _: *mut c_void) {
+extern "C" fn diagnostic_handler(info: &llvm_sys::DiagnosticInfo, _: *mut c_void) {
     let severity = unsafe { LLVMGetDiagInfoSeverity(info) };
     let msg = unsafe { LLVMString::new(LLVMGetDiagInfoDescription(info)) };
     match severity {
-        llvm::DiagnosticSeverity::Error => log::error!("{msg}"),
-        llvm::DiagnosticSeverity::Warning => log::warn!("{msg}"),
-        llvm::DiagnosticSeverity::Remark => log::debug!("{msg}"),
-        llvm::DiagnosticSeverity::Note => log::trace!("{msg}"),
+        llvm_sys::DiagnosticSeverity::Error => log::error!("{msg}"),
+        llvm_sys::DiagnosticSeverity::Warning => log::warn!("{msg}"),
+        llvm_sys::DiagnosticSeverity::Remark => log::debug!("{msg}"),
+        llvm_sys::DiagnosticSeverity::Note => log::trace!("{msg}"),
     }
 }
 
 pub struct ModuleLlvm {
-    llcx: &'static mut llvm::Context,
+    llcx: &'static mut llvm_sys::Context,
     // must be a raw pointer because the reference must not outlife self/the context
-    llmod_raw: *const llvm::Module,
-    tm: &'static mut llvm::TargetMachine,
+    llmod_raw: *const llvm_sys::Module,
+    tm: &'static mut llvm_sys::TargetMachine,
     opt_lvl: OptLevel,
 }
 
@@ -157,25 +228,25 @@ impl ModuleLlvm {
         features: &str,
         opt_lvl: OptLevel,
     ) -> Result<ModuleLlvm, LLVMString> {
-        let llcx = llvm::LLVMContextCreate();
+        let llcx = llvm_sys::LLVMContextCreate();
         let target_data_layout = target.data_layout.clone();
 
-        llvm::LLVMContextSetDiagnosticHandler(llcx, Some(diagnostic_handler), ptr::null_mut());
+        llvm_sys::LLVMContextSetDiagnosticHandler(llcx, Some(diagnostic_handler), ptr::null_mut());
 
         let name = CString::new(name).unwrap();
-        let llmod = llvm::LLVMModuleCreateWithNameInContext(name.as_ptr(), llcx);
+        let llmod = llvm_sys::LLVMModuleCreateWithNameInContext(name.as_ptr(), llcx);
 
         let data_layout = CString::new(&*target_data_layout).unwrap();
-        llvm::LLVMSetDataLayout(llmod, data_layout.as_ptr());
-        llvm::set_normalized_target(llmod, &target.llvm_target);
+        llvm_sys::LLVMSetDataLayout(llmod, data_layout.as_ptr());
+        llvm_sys::set_normalized_target(llmod, &target.llvm_target);
 
-        let tm = llvm::create_target(
+        let tm = llvm_sys::create_target(
             &target.llvm_target,
             target_cpu,
             features,
             opt_lvl,
-            llvm::RelocMode::PIC,
-            llvm::CodeModel::Default,
+            llvm_sys::RelocMode::PIC,
+            llvm_sys::CodeModel::Default,
         )?;
         let llmod_raw = llmod as _;
 
@@ -183,10 +254,10 @@ impl ModuleLlvm {
     }
 
     pub fn to_str(&self) -> LLVMString {
-        unsafe { LLVMString::new(llvm::LLVMPrintModuleToString(self.llmod())) }
+        unsafe { LLVMString::new(llvm_sys::LLVMPrintModuleToString(self.llmod())) }
     }
 
-    pub fn llmod(&self) -> &llvm::Module {
+    pub fn llmod(&self) -> &llvm_sys::Module {
         unsafe { &*self.llmod_raw }
     }
 
@@ -195,34 +266,34 @@ pub fn optimize(&self) {
 
     unsafe {
         // Create the pass builder
-        let pb = llvm::LLVMCreatePassBuilder();
+        let pb = llvm_sys::LLVMCreatePassBuilder();
 
         // Create the analysis managers
-        let mam = llvm::LLVMCreateModuleAnalysisManager();
-        let fam = llvm::LLVMCreateFunctionAnalysisManager();
-        let cgam = llvm::LLVMCreateCGSCCAnalysisManager();
-        let lam = llvm::LLVMCreateLoopAnalysisManager();
+        let mam = llvm_sys::LLVMCreateModuleAnalysisManager();
+        let fam = llvm_sys::LLVMCreateFunctionAnalysisManager();
+        let cgam = llvm_sys::LLVMCreateCGSCCAnalysisManager();
+        let lam = llvm_sys::LLVMCreateLoopAnalysisManager();
 
         // Register the analysis passes
-        llvm::LLVMPassBuilderRegisterModuleAnalyses(&*pb, &*mam);
-        llvm::LLVMPassBuilderRegisterFunctionAnalyses(&*pb, &*fam);
-        llvm::LLVMPassBuilderRegisterCGSCCAnalyses(&*pb, &*cgam);
-        llvm::LLVMPassBuilderRegisterLoopAnalyses(&*pb, &*lam);
-        llvm::LLVMPassBuilderCrossRegisterProxies(&*pb, &*lam, &*fam, &*cgam, &*mam);
+        llvm_sys::LLVMPassBuilderRegisterModuleAnalyses(&*pb, &*mam);
+        llvm_sys::LLVMPassBuilderRegisterFunctionAnalyses(&*pb, &*fam);
+        llvm_sys::LLVMPassBuilderRegisterCGSCCAnalyses(&*pb, &*cgam);
+        llvm_sys::LLVMPassBuilderRegisterLoopAnalyses(&*pb, &*lam);
+        llvm_sys::LLVMPassBuilderCrossRegisterProxies(&*pb, &*lam, &*fam, &*cgam, &*mam);
 
         // Create the optimization pipeline
-        let mpm = llvm::LLVMPassBuilderBuildPerModuleDefaultPipeline(&*pb, self.opt_lvl);
+        let mpm = llvm_sys::LLVMPassBuilderBuildPerModuleDefaultPipeline(&*pb, self.opt_lvl);
 
         // Run the passes
-        llvm::LLVMRunPassManager(mpm, llmod);
+        llvm_sys::LLVMRunPassManager(mpm, llmod);
 
         // Clean up
-        llvm::LLVMDisposePassManager(mpm);
-        llvm::LLVMDisposeLoopAnalysisManager(lam);
-        llvm::LLVMDisposeCGSCCAnalysisManager(cgam);
-        llvm::LLVMDisposeFunctionAnalysisManager(fam);
-        llvm::LLVMDisposeModuleAnalysisManager(mam);
-        llvm::LLVMDisposePassBuilder(pb);
+        llvm_sys::LLVMDisposePassManager(mpm);
+        llvm_sys::LLVMDisposeLoopAnalysisManager(lam);
+        llvm_sys::LLVMDisposeCGSCCAnalysisManager(cgam);
+        llvm_sys::LLVMDisposeFunctionAnalysisManager(fam);
+        llvm_sys::LLVMDisposeModuleAnalysisManager(mam);
+        llvm_sys::LLVMDisposePassBuilder(pb);
     }
 }
 
@@ -234,8 +305,8 @@ pub fn optimize(&self) {
     /// Whether this module is valid (true if valid)
     pub fn verify_and_print(&self) -> bool {
         unsafe {
-            llvm::LLVMVerifyModule(self.llmod(), llvm::VerifierFailureAction::PrintMessage, None)
-                == llvm::False
+            llvm_sys::LLVMVerifyModule(self.llmod(), llvm_sys::VerifierFailureAction::PrintMessage, None)
+                == llvm_sys::False
         }
     }
 
@@ -246,11 +317,11 @@ pub fn optimize(&self) {
     pub fn verify(&self) -> Option<LLVMString> {
         unsafe {
             let mut res = MaybeUninit::uninit();
-            if llvm::LLVMVerifyModule(
+            if llvm_sys::LLVMVerifyModule(
                 self.llmod(),
-                llvm::VerifierFailureAction::ReturnStatus,
+                llvm_sys::VerifierFailureAction::ReturnStatus,
                 Some(&mut res),
-            ) == llvm::True
+            ) == llvm_sys::True
             {
                 Some(res.assume_init())
             } else {
@@ -266,11 +337,11 @@ pub fn optimize(&self) {
         let return_code = unsafe {
             // REVIEW: Why does LLVM need a mutable ptr to path...?
 
-            llvm::LLVMTargetMachineEmitToFile(
+            llvm_sys::LLVMTargetMachineEmitToFile(
                 self.tm,
                 self.llmod(),
                 path.as_ptr(),
-                llvm::CodeGenFileType::ObjectFile,
+                llvm_sys::CodeGenFileType::ObjectFile,
                 err_string.as_mut_ptr(),
             )
         };
@@ -288,8 +359,8 @@ pub fn optimize(&self) {
 impl Drop for ModuleLlvm {
     fn drop(&mut self) {
         unsafe {
-            llvm::LLVMDisposeTargetMachine(&mut *(self.tm as *mut _));
-            llvm::LLVMContextDispose(&mut *(self.llcx as *mut _));
+            llvm_sys::LLVMDisposeTargetMachine(&mut *(self.tm as *mut _));
+            llvm_sys::LLVMContextDispose(&mut *(self.llcx as *mut _));
         }
     }
 }
