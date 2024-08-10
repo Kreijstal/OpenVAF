@@ -6,10 +6,8 @@ use std::ptr;
 
 use lasso::Rodeo;
 use libc::c_void;
-use std::ffi::{CStr, CString};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::Deref;
-use std::os::raw::c_char;
 use std::error::Error;
 
 use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
