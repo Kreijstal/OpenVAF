@@ -18,8 +18,8 @@ use target::spec::Target;
 use crate::types::Types;
 
 pub struct CodegenCx<'a, 'll> {
-    pub llmod: &'ll llvm_sys::Module,
-    pub llcx: &'ll llvm_sys::Context,
+    pub llmod: &'ll llvm_sys::LLVMModule,
+    pub llcx: &'ll llvm_sys::LLVMContext,
 
     pub target: &'a Target,
     // pub target_cpu: &'a str,
@@ -52,7 +52,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         }
     }
 
-    pub fn get_func_by_name(&self, name: &str) -> Option<&'ll llvm_sys::Value> {
+    pub fn get_func_by_name(&self, name: &str) -> Option<&'ll Value> {
         let name = CString::new(name).unwrap();
         unsafe { LLVMGetNamedFunction(self.llmod, name.as_ptr()) }
     }

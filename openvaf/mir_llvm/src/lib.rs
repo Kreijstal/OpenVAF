@@ -163,7 +163,9 @@ impl<'t> LLVMBackend<'t> {
         features.extend(target_features.iter().cloned());
 
         // TODO add target options here if we ever have any
-        llvm_sys::initialization::init(cg_opts, &[]);
+        // https://reviews.llvm.org/D145043
+        //llvm_sys::initialization::init(cg_opts, &[]);
+        //https://github.com/llvm/llvm-project/commit/62ef97e0631ff41ad53436477cecc7d3eb244d1b
         LLVMBackend { target, target_cpu, features: features.join(",") }
     }
 
@@ -304,7 +306,7 @@ pub fn optimize(&self) {
     /// Whether this module is valid (true if valid)
     pub fn verify_and_print(&self) -> bool {
         unsafe {
-            llvm_sys::LLVMVerifyModule(self.llmod(), llvm_sys::VerifierFailureAction::PrintMessage, None)
+            llvm_sys::LLVMVerifyModule(self.llmod(), llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction, None)
                 == llvm_sys::False
         }
     }
@@ -318,7 +320,7 @@ pub fn optimize(&self) {
             let mut res = MaybeUninit::uninit();
             if llvm_sys::LLVMVerifyModule(
                 self.llmod(),
-                llvm_sys::VerifierFailureAction::ReturnStatus,
+                llvm_sys::analysis::LLVMVerifierFailureAction::LLVMReturnStatusAction,
                 Some(&mut res),
             ) == llvm_sys::True
             {
@@ -340,7 +342,7 @@ pub fn optimize(&self) {
                 self.tm,
                 self.llmod(),
                 path.as_ptr(),
-                llvm_sys::CodeGenFileType::ObjectFile,
+                llvm_sys::target_machine::LLVMCodeGenFileType::LLVMObjectFile,
                 err_string.as_mut_ptr(),
             )
         };

@@ -7,7 +7,7 @@ use llvm_sys::LLVMValue as Value;
 use llvm_sys::prelude::LLVMBool;
 
 const False: LLVMBool = 0;
-const True: LLVMBool = 0;
+const True: LLVMBool = 1;
 use mir::Const;
 
 use crate::CodegenCx;
@@ -21,11 +21,11 @@ pub struct Types<'ll> {
     pub fat_ptr: &'ll Type,
     pub bool: &'ll Type,
     pub void: &'ll Type,
-    pub null_ptr_val: &'ll llvm_sys::Value,
+    pub null_ptr_val: &'ll Value,
 }
 
 impl<'ll> Types<'ll> {
-    pub fn new(llcx: &'ll llvm_sys::Context, pointer_width: u32) -> Types<'ll> {
+    pub fn new(llcx: &'ll llvm_sys::LLVMContext, pointer_width: u32) -> Types<'ll> {
         unsafe {
             let char = LLVMInt8TypeInContext(llcx);
             // we are using opaque pointers, with old llvm version that plain
@@ -49,7 +49,7 @@ impl<'ll> Types<'ll> {
     }
 }
 
-fn ty_struct<'ll>(llcx: &'ll llvm_sys::Context, name: &str, elements: &[&'ll Type]) -> &'ll Type {
+fn ty_struct<'ll>(llcx: &'ll llvm_sys::LLVMContext, name: &str, elements: &[&'ll Type]) -> &'ll Type {
     let name = CString::new(name).unwrap();
     unsafe {
         let ty = llvm_sys::LLVMStructCreateNamed(llcx, name.as_ptr());
@@ -130,10 +130,10 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
     /// The pointer must be a constant address
     pub unsafe fn const_gep(
         &self,
-        elem_ty: &'ll llvm_sys::Type,
-        ptr: &'ll llvm_sys::Value,
-        indices: &[&'ll llvm_sys::Value],
-    ) -> &'ll llvm_sys::Value {
+        elem_ty: &'ll Type,
+        ptr: &'ll Value,
+        indices: &[&'ll Value],
+    ) -> &'ll Value {
         llvm_sys::LLVMConstInBoundsGEP2(elem_ty, ptr, indices.as_ptr(), indices.len() as u32)
     }
 
@@ -190,6 +190,6 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
     }
 
     pub fn val_ty(&self, v: &'ll Value) -> &'ll Type {
-        unsafe { llvm_sys::LLVMTypeOf(v) }
+        unsafe { llvm_sys::core::LLVMTypeOf(v) }
     }
 }
