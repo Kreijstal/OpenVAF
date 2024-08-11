@@ -102,7 +102,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
                 self.llcx,
                 val.as_ptr() as *const c_char,
                 val.len() as c_uint,
-                false as llvm_sys::LLVMBool,
+                false ,
             )
         };
         let sym = self.generate_local_symbol_name("str");

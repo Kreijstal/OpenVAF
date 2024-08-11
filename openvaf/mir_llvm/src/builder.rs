@@ -42,7 +42,12 @@ impl<'ll> MemLoc<'ll> {
     ///
     /// ptr_ty, ty and indices must be valid for ptr
     pub unsafe fn read(&self, llbuilder: &llvm_sys::LLVMBuilder) -> &'ll llvm_sys::LLVMValue {
-        self.read_with_ptr(llbuilder, self.ptr)
+        // Convert references to raw pointers
+        let llbuilder_ptr = llbuilder as *const _ as *mut _;
+        let ptr = self.ptr as *const _ as *mut _;
+        
+        // Call read_with_ptr and convert the result back to a reference
+        &*(self.read_with_ptr(llbuilder_ptr, ptr))
     }
 
     /// # Safety
@@ -50,18 +55,26 @@ impl<'ll> MemLoc<'ll> {
     /// ptr_ty, ty and indices must be valid for ptr
     pub unsafe fn read_with_ptr(
         &self,
-        llbuilder: &llvm_sys::LLVMBuilder,
-        ptr: &'ll llvm_sys::LLVMValue,
-    ) -> &'ll llvm_sys::LLVMValue {
+        llbuilder: *mut llvm_sys::LLVMBuilder,
+        ptr: *mut llvm_sys::LLVMValue,
+    ) -> *mut llvm_sys::LLVMValue {
         let ptr = self.to_ptr_from(llbuilder, ptr);
-        LLVMBuildLoad2(llbuilder as *mut _, self.ty as *mut _, ptr as *mut _, UNNAMED)
+        // SAFETY: We're calling an unsafe LLVM function and trusting that it returns a valid value
+        unsafe {
+            llvm_sys::core::LLVMBuildLoad2(
+                llbuilder,
+                self.ty as *const _ as *mut _,
+                ptr,
+                UNNAMED
+            )
+        }
     }
 
     /// # Safety
     ///
     /// ptr_ty and indices must be valid for ptr
-    pub unsafe fn to_ptr(&self, llbuilder: &llvm_sys::LLVMBuilder) -> &'ll llvm_sys::LLVMValue {
-        self.to_ptr_from(llbuilder, self.ptr)
+    pub unsafe fn to_ptr(&self, llbuilder: *mut llvm_sys::LLVMBuilder) -> *mut llvm_sys::LLVMValue {
+        self.to_ptr_from(llbuilder, self.ptr as *const _ as  *mut _)
     }
 
     /// # Safety
@@ -69,17 +82,17 @@ impl<'ll> MemLoc<'ll> {
     /// ptr_ty and indices must be valid for ptr
     pub unsafe fn to_ptr_from(
         &self,
-        llbuilder: &llvm_sys::LLVMBuilder,
-        mut ptr: &'ll llvm_sys::LLVMValue,
-    ) -> &'ll llvm_sys::LLVMValue {
+        llbuilder: *mut llvm_sys::LLVMBuilder,
+        mut ptr: *mut llvm_sys::LLVMValue,
+    ) -> *mut llvm_sys::LLVMValue {
         if !self.indices.is_empty() {
             ptr = llvm_sys::core::LLVMBuildGEP2(
                 llbuilder,
-                self.ptr_ty,
+                self.ptr_ty as *const _ as *mut _,
                 ptr,
-                self.indices.as_ptr(),
+                self.indices.as_ptr() as *mut *mut _,
                 self.indices.len() as u32,
-                UNNAMED,
+                UNNAMED
             );
         }
         ptr
@@ -122,15 +135,25 @@ impl<'ll> BuilderVal<'ll> {
     /// # Safety
     ///
     /// For Self::Load and Self::Call, the values must be valid
-    pub unsafe fn get_ty(&self, builder: &Builder<'_, '_, 'll>) -> Option<&'ll llvm_sys::LLVMType> {
+      pub unsafe fn get_ty(&self, builder: &Builder<'_, '_, 'll>) -> Option<&'ll llvm_sys::LLVMType> {
         let ty = match self {
             BuilderVal::Undef => return None,
             BuilderVal::Eager(val) => builder.cx.val_ty(val),
             BuilderVal::Load(loc) => loc.ty,
-            BuilderVal::Call(call) => LLVMGetReturnType(call.fun_ty),
+            BuilderVal::Call(call) => {
+                // SAFETY: We're converting a reference to a raw pointer, then calling an LLVM function,
+                // and finally converting the result back to a reference. This is safe as long as LLVM
+                // behaves correctly and the input type is valid.
+                unsafe { 
+                    let fun_ty_ptr = call.fun_ty as *const _ as llvm_sys::prelude::LLVMTypeRef;
+                    let return_ty_ptr = llvm_sys::core::LLVMGetReturnType(fun_ty_ptr);
+                    &*return_ty_ptr
+                }
+            },
         };
         Some(ty)
     }
+    
 }
 
 // All Builders must have an llfn associated with them
@@ -161,91 +184,135 @@ pub enum FastMathMode {
     Partial,
     Disabled,
 }
-
 impl<'a, 'cx, 'll> Builder<'a, 'cx, 'll> {
     pub fn new(
         cx: &'a CodegenCx<'cx, 'll>,
         mir_func: &'a Function,
         llfunc: &'ll llvm_sys::LLVMValue,
     ) -> Self {
-        let entry = unsafe { llvm_sys::core::LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED) };
-        let llbuilder = unsafe { llvm_sys::core::LLVMCreateBuilderInContext(cx.llcx) };
+        let entry = unsafe { 
+            llvm_sys::core::LLVMAppendBasicBlockInContext(
+                cx.llcx as *const _ as *mut _,
+                llfunc as *const _ as *mut _,
+                UNNAMED
+            )
+        };
+        let llbuilder = unsafe { 
+            llvm_sys::core::LLVMCreateBuilderInContext(cx.llcx as *const _ as *mut _)
+        };
         let mut blocks: TiVec<_, _> = vec![None; mir_func.layout.num_blocks()].into();
         for bb in mir_func.layout.blocks() {
-            blocks[bb] =
-                unsafe { Some(llvm_sys::core::LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED)) };
+            blocks[bb] = unsafe { 
+                Some(llvm_sys::core::LLVMAppendBasicBlockInContext(
+                    cx.llcx as *const _ as *mut _,
+                    llfunc as *const _ as *mut _,
+                    UNNAMED
+                ) as *mut _)
+            };
         }
         unsafe { llvm_sys::core::LLVMPositionBuilderAtEnd(llbuilder, entry) };
 
         Builder {
-            llbuilder,
+            llbuilder: unsafe { &mut *llbuilder },
             cx,
             func: mir_func,
-            blocks,
+            blocks: blocks.into_iter().map(|b| b.map(|ptr| unsafe { &*ptr })).collect(),
             values: vec![BuilderVal::Undef; mir_func.dfg.num_values()].into(),
             params: Default::default(),
             callbacks: Default::default(),
             fun: llfunc,
-            prepend_pos: entry,
+            prepend_pos: unsafe { &*entry },
             unfinished_phis: Vec::new(),
         }
     }
 }
 
+use std::ptr::NonNull;
+
 impl<'ll> Builder<'_, '_, 'll> {
     /// # Safety
     /// Must not be called when a block that already contains a terminator is selected
     /// Must be called in the entry block of the function
-    pub unsafe fn alloca(&self, ty: &'ll llvm_sys::LLVMType) -> &'ll llvm_sys::LLVMValue {
-        llvm_sys::core::LLVMBuildAlloca(self.llbuilder as *mut _, ty as *mut _, UNNAMED)
+     pub unsafe fn alloca(&self, ty: &'ll llvm_sys::LLVMType) -> &'ll llvm_sys::LLVMValue {
+        &*(llvm_sys::core::LLVMBuildAlloca(self.llbuilder as *const _ as *mut _, ty as *const _ as *mut _, UNNAMED) as *const _)
     }
 
     /// # Safety
     /// Only correct llvm api calls must be performed within build_then and build_else
     /// Their return types must match and cond must be a bool
-    pub unsafe fn add_branching_select(
+        pub unsafe fn add_branching_select(
         &mut self,
         cond: &'ll llvm_sys::LLVMValue,
         build_then: impl FnOnce(&mut Self) -> &'ll llvm_sys::LLVMValue,
         build_else: impl FnOnce(&mut Self) -> &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         let start = self.prepend_pos;
-        let exit = llvm_sys::core::LLVMAppendBasicBlockInContext(self.cx.llcx, self.fun, UNNAMED);
-        let then_bb = llvm_sys::core::LLVMAppendBasicBlockInContext(self.cx.llcx, self.fun, UNNAMED);
+        let exit = llvm_sys::core::LLVMAppendBasicBlockInContext(
+            NonNull::from(self.cx.llcx).as_ptr(),
+            NonNull::from(self.fun).as_ptr(),
+            UNNAMED
+        );
+        let then_bb = llvm_sys::core::LLVMAppendBasicBlockInContext(
+            NonNull::from(self.cx.llcx).as_ptr(),
+            NonNull::from(self.fun).as_ptr(),
+            UNNAMED
+        );
         llvm_sys::core::LLVMPositionBuilderAtEnd(self.llbuilder, then_bb);
-        self.prepend_pos = then_bb;
+        self.prepend_pos = &*(then_bb as *const _);
         let then_val = build_then(self);
         llvm_sys::core::LLVMBuildBr(self.llbuilder, exit);
 
-        let else_bb = llvm_sys::core::LLVMAppendBasicBlockInContext(self.cx.llcx, self.fun, UNNAMED);
+        let else_bb = llvm_sys::core::LLVMAppendBasicBlockInContext(
+            NonNull::from(self.cx.llcx).as_ptr(),
+            NonNull::from(self.fun).as_ptr(),
+            UNNAMED
+        );
         llvm_sys::core::LLVMPositionBuilderAtEnd(self.llbuilder, else_bb);
-        self.prepend_pos = else_bb;
+        self.prepend_pos = &*(else_bb as *const _);
         let else_val = build_else(self);
         llvm_sys::core::LLVMBuildBr(self.llbuilder, exit);
 
-        llvm_sys::core::LLVMPositionBuilderAtEnd(self.llbuilder, start);
-        llvm_sys::core::LLVMBuildCondBr(self.llbuilder, cond, then_bb, else_bb);
+        llvm_sys::core::LLVMPositionBuilderAtEnd(self.llbuilder, NonNull::from(start).as_ptr());
+        llvm_sys::core::LLVMBuildCondBr(self.llbuilder, NonNull::from(cond).as_ptr(), then_bb, else_bb);
 
-        self.prepend_pos = exit;
-        llvm_sys::core::LLVMPositionBuilderAtEnd(self.llbuilder, self.prepend_pos);
-        let phi = llvm_sys::core::LLVMBuildPhi(self.llbuilder as *mut _, llvm_sys::core::LLVMTypeOf(then_val) as *mut _, UNNAMED);
-        llvm_sys::core::LLVMAddIncoming(phi, [then_val, else_val].as_ptr(), [then_bb, else_bb].as_ptr(), 2);
-        phi
+        self.prepend_pos = &*(exit as *const _);
+        llvm_sys::core::LLVMPositionBuilderAtEnd(self.llbuilder, exit);
+        let phi = llvm_sys::core::LLVMBuildPhi(
+            self.llbuilder,
+            llvm_sys::core::LLVMTypeOf(NonNull::from(then_val).as_ptr()),
+            UNNAMED
+        );
+        let mut incoming_blocks = [then_bb, else_bb];
+        llvm_sys::core::LLVMAddIncoming(
+            phi,
+            [NonNull::from(then_val).as_ptr(), NonNull::from(else_val).as_ptr()].as_ptr() as *mut _,
+            incoming_blocks.as_mut_ptr(),
+            2
+        );
+        &*phi
     }
+ 
 
     /// # Safety
     /// Only correct llvm api calls must be performed within build_then and build_else
     /// Their return types must match and cond must be a bool
-    pub unsafe fn select(
+        pub unsafe fn select(
         &self,
         cond: &'ll llvm_sys::LLVMValue,
         then_val: &'ll llvm_sys::LLVMValue,
         else_val: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
-        llvm_sys::core::LLVMBuildSelect(self.llbuilder as *mut _, cond as *mut _, then_val as *mut _, else_val as *mut _, UNNAMED)
+        let result = llvm_sys::core::LLVMBuildSelect(
+            self.llbuilder,
+            NonNull::from(cond).as_ptr(),
+            NonNull::from(then_val).as_ptr(),
+            NonNull::from(else_val).as_ptr(),
+            UNNAMED
+        );
+        &*(result as *const _)
     }
 
-    /// # Safety
+    /// # SAFETY
     /// Must not be called when a block that already contains a terminator is selected
     pub unsafe fn typed_gep(
         &self,
@@ -253,15 +320,20 @@ impl<'ll> Builder<'_, '_, 'll> {
         ptr: &'ll llvm_sys::LLVMValue,
         indices: &[&'ll llvm_sys::LLVMValue],
     ) -> &'ll llvm_sys::LLVMValue {
-        llvm_sys::core::LLVMBuildGEP2(
-            self.llbuilder as *mut _,
-            arr_ty as *mut _,
-            ptr as *mut _,
-            indices.as_ptr() as *mut _,
+        let result = llvm_sys::core::LLVMBuildGEP2(
+            self.llbuilder,
+            arr_ty as *const _ as *mut _,
+            ptr as *const _ as *mut _,
+            indices.as_ptr() as *const _ as *mut _,
             indices.len() as u32,
             UNNAMED,
-        )
+        );
+        
+        // Safety: We're assuming that the LLVM API returns a valid pointer.
+        // The lifetime 'll is tied to the Builder, which owns the LLVM context.
+        NonNull::new(result).map(|nn| nn.as_ref()).expect("LLVM returned null pointer")
     }
+    
 
     /// # Safety
     /// Must not be called when a block that already contains a terminator is selected
@@ -283,7 +355,17 @@ impl<'ll> Builder<'_, '_, 'll> {
         ptr: &'ll llvm_sys::LLVMValue,
         idx: u32,
     ) -> &'ll llvm_sys::LLVMValue {
-        llvm_sys::core::LLVMBuildStructGEP2(self.llbuilder as *mut _, struct_ty as *mut _, ptr as *mut _, idx, UNNAMED)
+        let result = llvm_sys::core::LLVMBuildStructGEP2(
+            self.llbuilder,
+            struct_ty as *const _ as *mut _,
+            ptr as *const _ as *mut _,
+            idx,
+            UNNAMED
+        );
+        
+        // Safety: We're assuming that the LLVM API returns a valid pointer.
+        // The lifetime 'll is tied to the Builder, which owns the LLVM context.
+        NonNull::new(result).map(|nn| nn.as_ref()).expect("LLVM returned null pointer")
     }
 
     /// # Safety
@@ -316,19 +398,20 @@ impl<'ll> Builder<'_, '_, 'll> {
         operands: &[&'ll llvm_sys::LLVMValue],
     ) -> &'ll llvm_sys::LLVMValue {
         let res = llvm_sys::core::LLVMBuildCall2(
-            self.llbuilder as *mut _,
-            fun_ty as *mut _,
-            fun as *mut _,
+            self.llbuilder,
+            NonNull::from(fun_ty).as_ptr(),
+            NonNull::from(fun).as_ptr(),
             operands.as_ptr() as *mut _,
             operands.len() as u32,
             UNNAMED,
         );
 
         // forgett this is a real footgun
-        let cconv = llvm_sys::core::LLVMGetFunctionCallConv(fun);
+        let cconv = llvm_sys::core::LLVMGetFunctionCallConv(NonNull::from(fun).as_ptr());
         llvm_sys::core::LLVMSetInstructionCallConv(res, cconv);
-        res
+        &*(res as *const _)
     }
+
 
     pub fn build_consts(&mut self) {
         for val in self.func.dfg.values() {
@@ -368,7 +451,15 @@ impl<'ll> Builder<'_, '_, 'll> {
                 })
                 .unzip();
 
-            llvm_sys::core::LLVMAddIncoming(llval, vals.as_ptr(), blocks.as_ptr(), vals.len() as c_uint);
+            let mut incoming_vals: Vec<*mut llvm_sys::LLVMValue> = vals.iter().map(|&v| v as *mut _).collect();
+            let mut incoming_blocks: Vec<*mut llvm_sys::LLVMBasicBlock> = blocks.iter().map(|&b| b as *mut _).collect();
+
+            llvm_sys::core::LLVMAddIncoming(
+                *llval,
+                incoming_vals.as_mut_ptr(),
+                incoming_blocks.as_mut_ptr(),
+                vals.len() as c_uint
+            );
         }
 
         self.unfinished_phis.clear();

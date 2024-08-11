@@ -10,7 +10,10 @@ use libc::c_void;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::Deref;
 use std::error::Error;
-
+use llvm_sys::core;
+use llvm_sys::prelude::*;
+use llvm_sys::transforms::pass_builder::*;
+use llvm_sys::error::LLVMGetErrorMessage;
 use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
 pub const UNNAMED: *const c_char = b"\0".as_ptr() as *const c_char;
 #[derive(Eq)]
@@ -375,42 +378,46 @@ impl ModuleLlvm {
     pub fn llmod(&self) -> &llvm_sys::LLVMModule {
         unsafe { &*self.llmod_raw }
     }
+   pub fn optimize(&self) {
+        unsafe {
+            // Create PassBuilderOptions
+            let options = LLVMCreatePassBuilderOptions();
 
-pub fn optimize(&self) {
-    let llmod = self.llmod();
+            // Set optimization level
+            let opt_level = match self.opt_lvl {
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelNone => "default<O0>",
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelLess => "default<O1>",
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault => "default<O2>",
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive => "default<O3>",
+            };
 
-    unsafe {
-        // Create the pass builder
-        let pb = llvm_sys::core::LLVMCreatePassBuilder();
+            // Convert optimization level to C string
+            let opt_level_cstring = CString::new(opt_level).unwrap();
 
-        // Create the analysis managers
-        let mam = llvm_sys::core::LLVMCreateModuleAnalysisManager();
-        let fam = llvm_sys::core::LLVMCreateFunctionAnalysisManager();
-        let cgam = llvm_sys::core::LLVMCreateCGSCCAnalysisManager();
-        let lam = llvm_sys::core::LLVMCreateLoopAnalysisManager();
+            // Run passes
+            let error = LLVMRunPasses(
+                self.llmod(),
+                opt_level_cstring.as_ptr(),
+                self.tm,
+                options
+            );
 
-        // Register the analysis passes
-        llvm_sys::core::LLVMPassBuilderRegisterModuleAnalyses(&*pb, &*mam);
-        llvm_sys::core::LLVMPassBuilderRegisterFunctionAnalyses(&*pb, &*fam);
-        llvm_sys::core::LLVMPassBuilderRegisterCGSCCAnalyses(&*pb, &*cgam);
-        llvm_sys::core::LLVMPassBuilderRegisterLoopAnalyses(&*pb, &*lam);
-        llvm_sys::core::LLVMPassBuilderCrossRegisterProxies(&*pb, &*lam, &*fam, &*cgam, &*mam);
+            // Check for errors
+            if !error.is_null() {
+                // Handle error
+                let error_string = LLVMGetErrorMessage(error);
+                let rust_str = std::ffi::CStr::from_ptr(error_string).to_string_lossy().into_owned();
+                eprintln!("Error occurred during optimization: {}", rust_str);
+                core::LLVMDisposeMessage(error_string);
+                // You might want to propagate this error or handle it according to your error handling strategy
+            }
 
-        // Create the optimization pipeline
-        let mpm = llvm_sys::core::LLVMPassBuilderBuildPerModuleDefaultPipeline(&*pb, self.opt_lvl);
-
-        // Run the passes
-        llvm_sys::core::LLVMRunPassManager(mpm, llmod);
-
-        // Clean up
-        llvm_sys::core::LLVMDisposePassManager(mpm);
-        llvm_sys::core::LLVMDisposeLoopAnalysisManager(lam);
-        llvm_sys::core::LLVMDisposeCGSCCAnalysisManager(cgam);
-        llvm_sys::core::LLVMDisposeFunctionAnalysisManager(fam);
-        llvm_sys::core::LLVMDisposeModuleAnalysisManager(mam);
-        llvm_sys::core::LLVMDisposePassBuilder(pb);
+            // Clean up
+            LLVMDisposePassBuilderOptions(options);
+        }
     }
-}
+    
+
 
 
 
