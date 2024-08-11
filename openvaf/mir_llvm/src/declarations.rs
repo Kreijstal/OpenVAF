@@ -2,9 +2,9 @@ use std::ffi::CString;
 
 use libc::c_char;
 use llvm_sys::core::LLVMTypeOf;
+use llvm_sys::prelude::LLVMBool;
 use llvm_sys::LLVMType as Type;
 use llvm_sys::LLVMValue as Value;
-use llvm_sys::prelude::LLVMBool;
 
 const False: LLVMBool = 0;
 
@@ -49,7 +49,13 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         // unnamed: llvm_sys::LLVMUnnamedAddr,
         fn_type: &'ll Type,
     ) -> &'ll Value {
-        declare_raw_fn(self, name, llvm_sys::LLVMCallConv::CCallConv, llvm_sys::LLVMUnnamedAddr::No, fn_type)
+        declare_raw_fn(
+            self,
+            name,
+            llvm_sys::LLVMCallConv::CCallConv,
+            llvm_sys::LLVMUnnamedAddr::No,
+            fn_type,
+        )
     }
 
     /// Declare a internal function.
@@ -139,7 +145,10 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
             llvm_sys::core::LLVMSetInitializer(res, val);
             llvm_sys::core::LLVMSetLinkage(res, llvm_sys::LLVMLinkage::ExternalLinkage);
             llvm_sys::core::LLVMSetUnnamedAddress(res, llvm_sys::LLVMUnnamedAddr::No);
-            llvm_sys::core::LLVMSetDLLStorageClass(res, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
+            llvm_sys::core::LLVMSetDLLStorageClass(
+                res,
+                llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass,
+            );
 
             if is_const {
                 llvm_sys::core::LLVMSetGlobalConstant(res, 1);

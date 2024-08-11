@@ -2,9 +2,9 @@ use std::ffi::CString;
 
 use libc::c_uint;
 use llvm_sys::core::LLVMInt8TypeInContext;
+use llvm_sys::prelude::LLVMBool;
 use llvm_sys::LLVMType as Type;
 use llvm_sys::LLVMValue as Value;
-use llvm_sys::prelude::LLVMBool;
 
 const False: LLVMBool = 0;
 const True: LLVMBool = 1;
@@ -40,7 +40,11 @@ impl<'ll> Types<'ll> {
                 int: llvm_sys::core::LLVMInt32TypeInContext(llcx),
                 size,
                 ptr,
-                fat_ptr: ty_struct(llcx, "fat_ptr", &[ptr, llvm_sys::core::LLVMInt64TypeInContext(llcx)]),
+                fat_ptr: ty_struct(
+                    llcx,
+                    "fat_ptr",
+                    &[ptr, llvm_sys::core::LLVMInt64TypeInContext(llcx)],
+                ),
                 bool: llvm_sys::core::LLVMInt1TypeInContext(llcx),
                 void: llvm_sys::core::LLVMVoidTypeInContext(llcx),
                 null_ptr_val: llvm_sys::core::LLVMConstPointerNull(ptr),
@@ -49,7 +53,11 @@ impl<'ll> Types<'ll> {
     }
 }
 
-fn ty_struct<'ll>(llcx: &'ll llvm_sys::LLVMContext, name: &str, elements: &[&'ll Type]) -> &'ll Type {
+fn ty_struct<'ll>(
+    llcx: &'ll llvm_sys::LLVMContext,
+    name: &str,
+    elements: &[&'ll Type],
+) -> &'ll Type {
     let name = CString::new(name).unwrap();
     unsafe {
         let ty = llvm_sys::core::LLVMStructCreateNamed(llcx, name.as_ptr());

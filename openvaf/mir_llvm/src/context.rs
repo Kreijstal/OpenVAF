@@ -1,18 +1,16 @@
 use std::cell::{Cell, RefCell};
 use std::ffi::CString;
 
+use crate::LLVMString;
 use ahash::AHashMap;
 use lasso::{Rodeo, Spur};
 use libc::{c_char, c_uint};
-use crate::LLVMString;
-use llvm_sys::linker::LLVMLinkModules2;
 use llvm_sys::bit_reader::LLVMParseBitcodeInContext2;
+use llvm_sys::linker::LLVMLinkModules2;
 use llvm_sys::LLVMType as Type;
 use llvm_sys::LLVMValue as Value;
 //use llvm_sys::LLVMBool; // For False, if applicable
-use llvm_sys::core::{
-    LLVMCreateMemoryBufferWithMemoryRange, LLVMGetNamedFunction
-};
+use llvm_sys::core::{LLVMCreateMemoryBufferWithMemoryRange, LLVMGetNamedFunction};
 use target::spec::Target;
 
 use crate::types::Types;
@@ -102,7 +100,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
                 self.llcx,
                 val.as_ptr() as *const c_char,
                 val.len() as c_uint,
-                false ,
+                false,
             )
         };
         let sym = self.generate_local_symbol_name("str");

@@ -1,6 +1,6 @@
+use crate::CodegenCx;
 use llvm_sys::LLVMType as Type;
 use llvm_sys::LLVMValue as Value;
-use crate::CodegenCx;
 
 impl<'a, 'll> CodegenCx<'a, 'll> {
     pub fn intrinsic(&self, name: &'static str) -> Option<(&'ll Type, &'ll Value)> {

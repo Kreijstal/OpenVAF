@@ -1,20 +1,19 @@
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
+use std::os::raw::{c_char, c_uint, c_ulonglong};
 use std::path::Path;
 use std::ptr;
-use std::os::raw::{c_char, c_uint, c_ulonglong};
-
 
 use lasso::Rodeo;
 use libc::c_void;
-use std::fmt::{self, Debug, Display, Formatter};
-use std::ops::Deref;
-use std::error::Error;
 use llvm_sys::core;
+use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
+use llvm_sys::error::LLVMGetErrorMessage;
 use llvm_sys::prelude::*;
 use llvm_sys::transforms::pass_builder::*;
-use llvm_sys::error::LLVMGetErrorMessage;
-use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
+use std::error::Error;
+use std::fmt::{self, Debug, Display, Formatter};
+use std::ops::Deref;
 pub const UNNAMED: *const c_char = b"\0".as_ptr() as *const c_char;
 #[derive(Eq)]
 #[repr(transparent)]
@@ -81,11 +80,8 @@ impl Drop for LLVMString {
     }
 }
 
-use llvm_sys::target_machine::{LLVMCodeGenOptLevel,LLVMGetHostCPUFeatures, LLVMGetHostCPUName
-};
-    use llvm_sys::core::{
-    LLVMGetDiagInfoDescription, LLVMGetDiagInfoSeverity
-};
+use llvm_sys::core::{LLVMGetDiagInfoDescription, LLVMGetDiagInfoSeverity};
+use llvm_sys::target_machine::{LLVMCodeGenOptLevel, LLVMGetHostCPUFeatures, LLVMGetHostCPUName};
 use target::spec::Target;
 
 mod builder;
@@ -202,7 +198,6 @@ impl<'t> LLVMBackend<'t> {
     }
 }
 
-
 impl Drop for LLVMBackend<'_> {
     fn drop(&mut self) {}
 }
@@ -240,7 +235,12 @@ pub unsafe fn create_target(
     let mut target: llvm_sys::target_machine::LLVMTargetRef = ptr::null_mut();
     let mut error_msg: *mut c_char = ptr::null_mut();
 
-    if llvm_sys::target_machine::LLVMGetTargetFromTriple(triple_c.as_ptr(), &mut target, &mut error_msg) != 0 {
+    if llvm_sys::target_machine::LLVMGetTargetFromTriple(
+        triple_c.as_ptr(),
+        &mut target,
+        &mut error_msg,
+    ) != 0
+    {
         let error = from_c_string(error_msg);
         llvm_sys::core::LLVMDisposeMessage(error_msg);
         return Err(error);
@@ -298,11 +298,17 @@ pub unsafe fn dispose_target_data(target_data: llvm_sys::target::LLVMTargetDataR
     llvm_sys::target::LLVMDisposeTargetData(target_data);
 }
 
-pub unsafe fn abi_size_of_type(data: llvm_sys::target::LLVMTargetDataRef, ty: llvm_sys::prelude::LLVMTypeRef) -> c_ulonglong {
+pub unsafe fn abi_size_of_type(
+    data: llvm_sys::target::LLVMTargetDataRef,
+    ty: llvm_sys::prelude::LLVMTypeRef,
+) -> c_ulonglong {
     llvm_sys::target::LLVMABISizeOfType(data, ty)
 }
 
-pub unsafe fn abi_alignment_of_type(data: llvm_sys::target::LLVMTargetDataRef, ty: llvm_sys::prelude::LLVMTypeRef) -> c_uint {
+pub unsafe fn abi_alignment_of_type(
+    data: llvm_sys::target::LLVMTargetDataRef,
+    ty: llvm_sys::prelude::LLVMTypeRef,
+) -> c_uint {
     llvm_sys::target::LLVMABIAlignmentOfType(data, ty)
 }
 
@@ -315,7 +321,14 @@ pub unsafe fn target_machine_emit_to_file(
     let filename_c = to_c_string(filename);
     let mut error_msg: *mut c_char = ptr::null_mut();
 
-    if llvm_sys::target_machine::LLVMTargetMachineEmitToFile(target, module, filename_c.as_ptr(), codegen, &mut error_msg) != 0 {
+    if llvm_sys::target_machine::LLVMTargetMachineEmitToFile(
+        target,
+        module,
+        filename_c.as_ptr(),
+        codegen,
+        &mut error_msg,
+    ) != 0
+    {
         let error = from_c_string(error_msg);
         llvm_sys::core::LLVMDisposeMessage(error_msg);
         Err(error)
@@ -323,7 +336,6 @@ pub unsafe fn target_machine_emit_to_file(
         Ok(())
     }
 }
-
 
 pub struct ModuleLlvm {
     llcx: llvm_sys::prelude::LLVMContextRef,
@@ -343,14 +355,18 @@ impl ModuleLlvm {
         let llcx = llvm_sys::core::LLVMContextCreate();
         let target_data_layout = target.data_layout.clone();
 
-        llvm_sys::core::LLVMContextSetDiagnosticHandler(llcx, Some(diagnostic_handler), ptr::null_mut());
+        llvm_sys::core::LLVMContextSetDiagnosticHandler(
+            llcx,
+            Some(diagnostic_handler),
+            ptr::null_mut(),
+        );
 
         let name = CString::new(name).unwrap();
         let llmod = llvm_sys::core::LLVMModuleCreateWithNameInContext(name.as_ptr(), llcx);
 
         let data_layout = CString::new(&*target_data_layout).unwrap();
         llvm_sys::core::LLVMSetDataLayout(llmod, data_layout.as_ptr());
-        
+
         // Assuming set_normalized_target is a function you've defined
         set_normalized_target(llmod, &target.llvm_target);
 
@@ -363,12 +379,7 @@ impl ModuleLlvm {
             llvm_sys::target_machine::LLVMCodeModel::LLVMCodeModelDefault,
         )?;
 
-        Ok(ModuleLlvm {
-            llcx,
-            llmod_raw: llmod,
-            tm,
-            opt_lvl,
-        })
+        Ok(ModuleLlvm { llcx, llmod_raw: llmod, tm, opt_lvl })
     }
 
     pub fn to_str(&self) -> LLVMString {
@@ -378,35 +389,39 @@ impl ModuleLlvm {
     pub fn llmod(&self) -> &llvm_sys::LLVMModule {
         unsafe { &*self.llmod_raw }
     }
-   pub fn optimize(&self) {
+    pub fn optimize(&self) {
         unsafe {
             // Create PassBuilderOptions
             let options = LLVMCreatePassBuilderOptions();
 
             // Set optimization level
             let opt_level = match self.opt_lvl {
-                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelNone => "default<O0>",
-                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelLess => "default<O1>",
-                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault => "default<O2>",
-                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive => "default<O3>",
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelNone => {
+                    "default<O0>"
+                }
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelLess => {
+                    "default<O1>"
+                }
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault => {
+                    "default<O2>"
+                }
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive => {
+                    "default<O3>"
+                }
             };
 
             // Convert optimization level to C string
             let opt_level_cstring = CString::new(opt_level).unwrap();
 
             // Run passes
-            let error = LLVMRunPasses(
-                self.llmod(),
-                opt_level_cstring.as_ptr(),
-                self.tm,
-                options
-            );
+            let error = LLVMRunPasses(self.llmod(), opt_level_cstring.as_ptr(), self.tm, options);
 
             // Check for errors
             if !error.is_null() {
                 // Handle error
                 let error_string = LLVMGetErrorMessage(error);
-                let rust_str = std::ffi::CStr::from_ptr(error_string).to_string_lossy().into_owned();
+                let rust_str =
+                    std::ffi::CStr::from_ptr(error_string).to_string_lossy().into_owned();
                 eprintln!("Error occurred during optimization: {}", rust_str);
                 core::LLVMDisposeMessage(error_string);
                 // You might want to propagate this error or handle it according to your error handling strategy
@@ -416,10 +431,6 @@ impl ModuleLlvm {
             LLVMDisposePassBuilderOptions(options);
         }
     }
-    
-
-
-
 
     /// Verifies this module and prints out  any errors
     ///
@@ -427,8 +438,11 @@ impl ModuleLlvm {
     /// Whether this module is valid (true if valid)
     pub fn verify_and_print(&self) -> bool {
         unsafe {
-            llvm_sys::analysis::LLVMVerifyModule(self.llmod(), llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction, None)
-                == 0
+            llvm_sys::analysis::LLVMVerifyModule(
+                self.llmod(),
+                llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction,
+                None,
+            ) == 0
         }
     }
 
