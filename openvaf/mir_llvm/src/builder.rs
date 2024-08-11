@@ -483,14 +483,19 @@ impl<'ll> Builder<'_, '_, 'll> {
         }
     }
 
-    pub fn select_bb_before_terminator(&self, bb: Block) {
-        let bb = self.blocks[bb].unwrap();
-        unsafe {
-            let inst = llvm_sys::core::LLVMGetLastInstruction(bb);
-            llvm_sys::core::LLVMPositionBuilder(self.llbuilder, bb, inst);
-        };
-    }
 
+    pub fn select_bb_before_terminator(&self, bb: Block) {
+    let bb = self.blocks[bb].unwrap();
+    unsafe {
+        let bb_ptr = NonNull::from(bb).as_ptr();
+        let inst = llvm_sys::core::LLVMGetLastInstruction(bb_ptr);
+        llvm_sys::core::LLVMPositionBuilder(
+            self.llbuilder,
+            bb_ptr,
+            inst
+        );
+    }
+}
     /// # Safety
     ///
     /// Must not be called if any non phi instruction has already been build for `bb`
@@ -511,9 +516,11 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// must not be called multiple times
     /// a terminator must not be build for the exit bb trough other means
     pub unsafe fn ret(&mut self, val: &'ll llvm_sys::LLVMValue) {
-        llvm_sys::core::LLVMBuildRet(self.llbuilder as *mut _, val as *mut _);
-    }
-
+    llvm_sys::core::LLVMBuildRet(
+        self.llbuilder,
+        NonNull::from(val).as_ptr()
+    );
+}
     /// # Safety
     /// must not be called multiple times
     /// a terminator must not be build for the exit bb trough other means
