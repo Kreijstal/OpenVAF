@@ -9,7 +9,7 @@ use llvm_sys::LLVMValue as Value;
 const False: LLVMBool = 0;
 const True: LLVMBool = 1;
 use mir::Const;
-
+use core::ptr::NonNull;
 use crate::CodegenCx;
 
 pub struct Types<'ll> {
@@ -27,32 +27,31 @@ pub struct Types<'ll> {
 impl<'ll> Types<'ll> {
     pub fn new(llcx: &'ll llvm_sys::LLVMContext, pointer_width: u32) -> Types<'ll> {
         unsafe {
-            let char = LLVMInt8TypeInContext(llcx);
+            let char = LLVMInt8TypeInContext(NonNull::from(llcx).as_ptr());
             // we are using opaque pointers, with old llvm version that plain
             // means always using char pointers, with newer llvm version the
             // type is ignored anyway
             //let ptr = llvm_sys::core::LLVMPointerType(char, llvm_sys::AddressSpace::DATA);
             let ptr = llvm_sys::core::LLVMPointerType(char, 0); // 0 represents the default (DATA) address space
-            let size = llvm_sys::core::LLVMIntTypeInContext(llcx, pointer_width);
+            let size = llvm_sys::core::LLVMIntTypeInContext(NonNull::from(llcx).as_ptr(), pointer_width);
             Types {
-                double: llvm_sys::core::LLVMDoubleTypeInContext(llcx),
-                char,
-                int: llvm_sys::core::LLVMInt32TypeInContext(llcx),
-                size,
-                ptr,
+                double: &*llvm_sys::core::LLVMDoubleTypeInContext(NonNull::from(llcx).as_ptr()),
+                char:&*char,
+                int: &*llvm_sys::core::LLVMInt32TypeInContext(NonNull::from(llcx).as_ptr()),
+                size:&*size,
+                ptr:&*ptr,
                 fat_ptr: ty_struct(
                     llcx,
                     "fat_ptr",
-                    &[ptr, llvm_sys::core::LLVMInt64TypeInContext(llcx)],
+                    &[&*ptr, &*llvm_sys::core::LLVMInt64TypeInContext(NonNull::from(llcx).as_ptr())],
                 ),
-                bool: llvm_sys::core::LLVMInt1TypeInContext(llcx),
-                void: llvm_sys::core::LLVMVoidTypeInContext(llcx),
-                null_ptr_val: llvm_sys::core::LLVMConstPointerNull(ptr),
+                bool: &*llvm_sys::core::LLVMInt1TypeInContext(NonNull::from(llcx).as_ptr()),
+                void: &*llvm_sys::core::LLVMVoidTypeInContext(NonNull::from(llcx).as_ptr()),
+                null_ptr_val: &*llvm_sys::core::LLVMConstPointerNull(ptr),
             }
         }
     }
 }
-
 fn ty_struct<'ll>(
     llcx: &'ll llvm_sys::LLVMContext,
     name: &str,
@@ -60,11 +59,24 @@ fn ty_struct<'ll>(
 ) -> &'ll Type {
     let name = CString::new(name).unwrap();
     unsafe {
-        let ty = llvm_sys::core::LLVMStructCreateNamed(llcx, name.as_ptr());
-        llvm_sys::core::LLVMStructSetBody(ty, elements.as_ptr(), elements.len() as u32, False);
-        ty
+        let ty = llvm_sys::core::LLVMStructCreateNamed(NonNull::from(llcx).as_ptr(), name.as_ptr());
+        
+        // Convert &[&'ll Type] to Vec<*mut LLVMType>
+        let mut element_ptrs: Vec<*mut llvm_sys::LLVMType> = elements
+            .iter()
+            .map(|&e| e as *const _ as *mut _)
+            .collect();
+
+        llvm_sys::core::LLVMStructSetBody(
+            ty,
+            element_ptrs.as_mut_ptr(),
+            elements.len() as u32,
+            0,//false
+        );
+        &*ty
     }
-}
+} 
+
 
 impl<'a, 'll> CodegenCx<'a, 'll> {
     #[inline(always)]
@@ -104,23 +116,34 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         self.tys.fat_ptr
     }
     pub fn ty_aint(&self, bits: u32) -> &'ll Type {
-        unsafe { llvm_sys::core::LLVMIntTypeInContext(self.llcx, bits) }
+        unsafe { &*llvm_sys::core::LLVMIntTypeInContext(NonNull::from(self.llcx).as_ptr(), bits) }
     }
 
     pub fn ty_struct(&self, name: &str, elements: &[&'ll Type]) -> &'ll Type {
         ty_struct(self.llcx, name, elements)
     }
 
-    pub fn ty_func(&self, args: &[&'ll Type], ret: &'ll Type) -> &'ll Type {
-        unsafe { llvm_sys::core::LLVMFunctionType(ret, args.as_ptr(), args.len() as c_uint, False) }
-    }
+pub fn ty_func(&self, args: &[&'ll Type], ret: &'ll Type) -> &'ll Type {
+    unsafe {
+        let mut arg_ptrs: Vec<*mut llvm_sys::LLVMType> = args
+            .iter()
+            .map(|&arg| arg as *const _ as *mut _)
+            .collect();
 
+        &*llvm_sys::core::LLVMFunctionType(
+            ret as *const _ as *mut _,
+            arg_ptrs.as_mut_ptr(),
+            args.len() as c_uint,
+            False,
+        )
+    }
+}
     pub fn ty_variadic_func(&self, args: &[&'ll Type], ret: &'ll Type) -> &'ll Type {
-        unsafe { llvm_sys::core::LLVMFunctionType(ret, args.as_ptr(), args.len() as c_uint, True) }
+        unsafe { &*llvm_sys::core::LLVMFunctionType(NonNull::from(ret).as_ptr(), args.as_ptr(), args.len() as c_uint, True) }
     }
 
     pub fn ty_array(&self, ty: &'ll Type, len: u32) -> &'ll Type {
-        unsafe { llvm_sys::core::LLVMArrayType(ty, len) }
+        unsafe { &*llvm_sys::core::LLVMArrayType(NonNull::from(ty).as_ptr(), len) }
     }
 
     pub fn const_val(&self, val: &Const) -> &'ll Value {
