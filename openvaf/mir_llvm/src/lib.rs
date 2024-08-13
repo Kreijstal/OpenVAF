@@ -228,6 +228,59 @@ unsafe fn from_c_string(s: *const c_char) -> String {
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }
 
+/// # Safety
+///
+/// This function calls the LLVM C interface and may emit unsafety for invalid inputs.
+/// Specifically this function is not thread save!
+pub unsafe fn create_target(
+    triple: &str,
+    cpu: &str,
+    features: &str,
+    level: llvm_sys::target_machine::LLVMCodeGenOptLevel,
+    reloc_mode: llvm_sys::target_machine::LLVMRelocMode,
+    code_model: llvm_sys::target_machine::LLVMCodeModel,
+) -> Result<llvm_sys::target_machine::LLVMTargetMachineRef, LLVMString> {
+    let triple_ = LLVMString::create_from_c_str(&CString::new(triple).unwrap());
+    let triple_ = LLVMString::new(llvm_sys::target_machine::LLVMNormalizeTargetTriple(triple_.as_ptr()));
+    let mut target: *mut llvm_sys::target_machine::LLVMTargetRef = std::ptr::null_mut();
+    let mut err_string = MaybeUninit::uninit();
+
+    let code = llvm_sys::target_machine::LLVMGetTargetFromTriple(
+        triple_.as_ptr(),
+        &mut target,
+        err_string.as_mut_ptr()
+    );
+
+    if code == 1 {
+        return Err(LLVMString::new(err_string.assume_init()));
+    }
+
+    let cpu = LLVMString::create_from_str(cpu);
+    let features = CString::new(features).unwrap();
+
+    let target_machine = llvm_sys::target_machine::LLVMCreateTargetMachine(
+        target,
+        triple_.as_ptr(),
+        cpu.as_ptr(),
+        features.as_ptr(),
+        level,
+        reloc_mode,
+        code_model,
+    );
+
+    if target_machine.is_null() {
+        return Err(LLVMString::create_from_c_str(
+            CStr::from_bytes_with_nul(
+                format!("error: code gen not available for target \"{}\"\0", triple).as_bytes(),
+            )
+            .unwrap(),
+        ));
+    }
+
+    Ok(target_machine)
+}
+/*
+ 
 pub unsafe fn create_target(
     triple: &str,
     cpu: &str,
@@ -270,6 +323,9 @@ pub unsafe fn create_target(
         Ok(target_machine)
     }
 }
+
+ * */
+
 
 pub unsafe fn set_normalized_target(module: llvm_sys::prelude::LLVMModuleRef, triple: &str) {
     let triple_c = to_c_string(triple);
@@ -344,7 +400,7 @@ pub unsafe fn target_machine_emit_to_file(
 
 pub struct ModuleLlvm {
     llcx: llvm_sys::prelude::LLVMContextRef,
-    llmod_raw: *mut llvm_sys::prelude::LLVMModuleRef,
+    llmod_raw: llvm_sys::prelude::LLVMModuleRef,
     tm: llvm_sys::target_machine::LLVMTargetMachineRef,
     opt_lvl: llvm_sys::target_machine::LLVMCodeGenOptLevel,
 }
@@ -388,7 +444,7 @@ impl ModuleLlvm {
     }
 
     pub fn to_str(&self) -> LLVMString {
-        unsafe { LLVMString::new(llvm_sys::core::LLVMPrintModuleToString(self.llmod())) }
+        unsafe { LLVMString::new(llvm_sys::core::LLVMPrintModuleToString(NonNull::from(self.llmod()).as_ptr())) }
     }
 
     pub fn llmod(&self) -> &llvm_sys::LLVMModule {
