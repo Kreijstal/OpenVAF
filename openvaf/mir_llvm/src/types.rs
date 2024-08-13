@@ -138,9 +138,21 @@ pub fn ty_func(&self, args: &[&'ll Type], ret: &'ll Type) -> &'ll Type {
         )
     }
 }
-    pub fn ty_variadic_func(&self, args: &[&'ll Type], ret: &'ll Type) -> &'ll Type {
-        unsafe { &*llvm_sys::core::LLVMFunctionType(NonNull::from(ret).as_ptr(), args.as_ptr(), args.len() as c_uint, True) }
+pub fn ty_variadic_func(&self, args: &[&'ll Type], ret: &'ll Type) -> &'ll Type {
+    unsafe {
+        let mut arg_ptrs: Vec<*mut llvm_sys::LLVMType> = args
+            .iter()
+            .map(|&arg| arg as *const _ as *mut _)
+            .collect();
+
+        &*llvm_sys::core::LLVMFunctionType(
+            ret as *const _ as *mut _,
+            arg_ptrs.as_mut_ptr(),
+            args.len() as c_uint,
+            True,
+        )
     }
+}
 
     pub fn ty_array(&self, ty: &'ll Type, len: u32) -> &'ll Type {
         unsafe { &*llvm_sys::core::LLVMArrayType(NonNull::from(ty).as_ptr(), len) }
@@ -159,68 +171,80 @@ pub fn ty_func(&self, args: &[&'ll Type], ret: &'ll Type) -> &'ll Type {
     /// # Safety
     /// indices must be valid and inbounds for the provided ptr
     /// The pointer must be a constant address
-    pub unsafe fn const_gep(
-        &self,
-        elem_ty: &'ll Type,
-        ptr: &'ll Value,
-        indices: &[&'ll Value],
-    ) -> &'ll Value {
-        llvm_sys::core::LLVMConstInBoundsGEP2(elem_ty, ptr, indices.as_ptr(), indices.len() as u32)
-    }
+pub unsafe fn const_gep(
+    &self,
+    elem_ty: &'ll Type,
+    ptr: &'ll Value,
+    indices: &[&'ll Value],
+) -> &'ll Value {
+    let mut index_ptrs: Vec<*mut llvm_sys::LLVMValue> = indices
+        .iter()
+        .map(|&v| NonNull::from(v).as_ptr())
+        .collect();
 
-    pub fn const_int(&self, val: i32) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstInt(self.ty_int(), val as u64, True) }
-    }
+    &*llvm_sys::core::LLVMConstInBoundsGEP2(
+        NonNull::from(elem_ty).as_ptr(),
+        NonNull::from(ptr).as_ptr(),
+        index_ptrs.as_mut_ptr(),
+        indices.len() as u32
+    )
+}
+pub fn const_int(&self, val: i32) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMConstInt(NonNull::from(self.ty_int()).as_ptr(), val as u64, True) }
+}
 
-    pub fn const_unsigned_int(&self, val: u32) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstInt(self.ty_int(), val as u64, True) }
-    }
+pub fn const_unsigned_int(&self, val: u32) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMConstInt(NonNull::from(self.ty_int()).as_ptr(), val as u64, True) }
+}
 
-    pub fn const_isize(&self, val: isize) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstInt(self.ty_size(), val as u64, True) }
-    }
+pub fn const_isize(&self, val: isize) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMConstInt(NonNull::from(self.ty_size()).as_ptr(), val as u64, True) }
+}
 
-    pub fn const_usize(&self, val: usize) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstInt(self.ty_size(), val as u64, False) }
-    }
+pub fn const_usize(&self, val: usize) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMConstInt(NonNull::from(self.ty_size()).as_ptr(), val as u64, False) }
+}
 
-    pub fn const_bool(&self, val: bool) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstInt(self.ty_bool(), val as u64, False) }
-    }
+pub fn const_bool(&self, val: bool) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMConstInt(NonNull::from(self.ty_bool()).as_ptr(), val as u64, False) }
+}
 
-    pub fn const_c_bool(&self, val: bool) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstInt(self.ty_c_bool(), val as u64, False) }
-    }
+pub fn const_c_bool(&self, val: bool) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMConstInt(NonNull::from(self.ty_c_bool()).as_ptr(), val as u64, False) }
+}
 
-    pub fn const_u8(&self, val: u8) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstInt(self.ty_c_bool(), val as u64, False) }
-    }
+pub fn const_u8(&self, val: u8) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMConstInt(NonNull::from(self.ty_c_bool()).as_ptr(), val as u64, False) }
+}
 
-    pub fn const_real(&self, val: f64) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstReal(self.ty_double(), val) }
-    }
+pub fn const_real(&self, val: f64) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMConstReal(NonNull::from(self.ty_double()).as_ptr(), val) }
+}
 
-    pub fn const_arr(&self, elem_ty: &'ll Type, vals: &[&'ll Value]) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstArray(elem_ty, vals.as_ptr(), vals.len() as u32) }
+pub fn const_arr(&self, elem_ty: &'ll Type, vals: &[&'ll Value]) -> &'ll Value {
+    unsafe {
+        let mut val_ptrs: Vec<*mut llvm_sys::LLVMValue> = vals.iter().map(|&v| NonNull::from(v).as_ptr()).collect();
+        &*llvm_sys::core::LLVMConstArray(NonNull::from(elem_ty).as_ptr(), val_ptrs.as_mut_ptr(), vals.len() as u32)
     }
+}
 
-    pub fn const_struct(&self, ty: &'ll Type, vals: &[&'ll Value]) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstNamedStruct(ty, vals.as_ptr(), vals.len() as u32) }
+pub fn const_struct(&self, ty: &'ll Type, vals: &[&'ll Value]) -> &'ll Value {
+    unsafe {
+        let mut val_ptrs: Vec<*mut llvm_sys::LLVMValue> = vals.iter().map(|&v| NonNull::from(v).as_ptr()).collect();
+        &*llvm_sys::core::LLVMConstNamedStruct(NonNull::from(ty).as_ptr(), val_ptrs.as_mut_ptr(), vals.len() as u32)
     }
+}
 
-    pub fn const_null(&self, t: &'ll Type) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMConstNull(t) }
-    }
+pub fn const_null_ptr(&self) -> &'ll Value {
+    self.tys.null_ptr_val
+}
 
-    pub fn const_null_ptr(&self) -> &'ll Value {
-        self.tys.null_ptr_val
-    }
+pub fn const_undef(&self, t: &'ll Type) -> &'ll Value {
+    unsafe { &*llvm_sys::core::LLVMGetUndef(NonNull::from(t).as_ptr()) }
+}
 
-    pub fn const_undef(&self, t: &'ll Type) -> &'ll Value {
-        unsafe { llvm_sys::core::LLVMGetUndef(t) }
-    }
+pub fn val_ty(&self, v: &'ll Value) -> &'ll Type {
+    unsafe { &*llvm_sys::core::LLVMTypeOf(NonNull::from(v).as_ptr()) }
+}
 
-    pub fn val_ty(&self, v: &'ll Value) -> &'ll Type {
-        unsafe { llvm_sys::core::LLVMTypeOf(v) }
-    }
 }

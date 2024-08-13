@@ -14,6 +14,8 @@ use llvm_sys::transforms::pass_builder::*;
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::Deref;
+use std::ptr::NonNull;
+
 pub const UNNAMED: *const c_char = b"\0".as_ptr() as *const c_char;
 #[derive(Eq)]
 #[repr(transparent)]
@@ -202,14 +204,17 @@ impl Drop for LLVMBackend<'_> {
     fn drop(&mut self) {}
 }
 
-extern "C" fn diagnostic_handler(info: &llvm_sys::LLVMDiagnosticInfo, _: *mut c_void) {
-    let severity = unsafe { LLVMGetDiagInfoSeverity(info) };
-    let msg = unsafe { LLVMString::new(LLVMGetDiagInfoDescription(info)) };
-    match severity {
-        llvm_sys::LLVMDiagnosticSeverity::LLVMDSError => log::error!("{msg}"),
-        llvm_sys::LLVMDiagnosticSeverity::LLVMDSWarning => log::warn!("{msg}"),
-        llvm_sys::LLVMDiagnosticSeverity::LLVMDSRemark => log::debug!("{msg}"),
-        llvm_sys::LLVMDiagnosticSeverity::LLVMDSNote => log::trace!("{msg}"),
+
+extern "C" fn diagnostic_handler(info: *mut llvm_sys::LLVMDiagnosticInfo, _: *mut c_void) {
+    unsafe {
+        let severity = LLVMGetDiagInfoSeverity(info);
+        let msg = LLVMString::new(LLVMGetDiagInfoDescription(info));
+        match severity {
+            llvm_sys::LLVMDiagnosticSeverity::LLVMDSError => log::error!("{msg}"),
+            llvm_sys::LLVMDiagnosticSeverity::LLVMDSWarning => log::warn!("{msg}"),
+            llvm_sys::LLVMDiagnosticSeverity::LLVMDSRemark => log::debug!("{msg}"),
+            llvm_sys::LLVMDiagnosticSeverity::LLVMDSNote => log::trace!("{msg}"),
+        }
     }
 }
 
