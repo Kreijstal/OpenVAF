@@ -298,25 +298,25 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// Only correct llvm api calls must be performed within build_then and build_else
     /// Their return types must match and cond must be a bool
     pub unsafe fn select(
-        &self,
-        cond: &'ll llvm_sys::LLVMValue,
-        then_val: &'ll llvm_sys::LLVMValue,
-        else_val: &'ll llvm_sys::LLVMValue,
-    ) -> &'ll llvm_sys::LLVMValue {
-        let result = llvm_sys::core::LLVMBuildSelect(
-            self.llbuilder,
-            NonNull::from(cond).as_ptr(),
-            NonNull::from(then_val).as_ptr(),
-            NonNull::from(else_val).as_ptr(),
-            UNNAMED,
-        );
-        &*(result as *const _)
-    }
+    &mut self,
+    cond: &'ll llvm_sys::LLVMValue,
+    then_val: &'ll llvm_sys::LLVMValue,
+    else_val: &'ll llvm_sys::LLVMValue,
+) -> &'ll llvm_sys::LLVMValue {
+    let result = llvm_sys::core::LLVMBuildSelect(
+        self.llbuilder,
+        NonNull::from(cond).as_ptr(),
+        NonNull::from(then_val).as_ptr(),
+        NonNull::from(else_val).as_ptr(),
+        UNNAMED,
+    );
+    &*(result as *const _)
+}
 
     /// # SAFETY
     /// Must not be called when a block that already contains a terminator is selected
     pub unsafe fn typed_gep(
-        &self,
+        &mut self,
         arr_ty: &'ll llvm_sys::LLVMType,
         ptr: &'ll llvm_sys::LLVMValue,
         indices: &[&'ll llvm_sys::LLVMValue],
@@ -338,7 +338,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// # Safety
     /// Must not be called when a block that already contains a terminator is selected
     pub unsafe fn gep(
-        &self,
+        &mut self,
         elem_ty: &'ll llvm_sys::LLVMType,
         ptr: &'ll llvm_sys::LLVMValue,
         indices: &[&'ll llvm_sys::LLVMValue],
@@ -350,7 +350,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// * Must not be called when a block that already contains a terminator is selected
     /// * struct_ty must be a valid struct type for this pointer and idx must be in bounds
     pub unsafe fn struct_gep(
-        &self,
+        &mut self,
         struct_ty: &'ll llvm_sys::LLVMType,
         ptr: &'ll llvm_sys::LLVMValue,
         idx: u32,
@@ -371,7 +371,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// # Safety
     /// Must not be called when a block that already contains a terminator is selected
     pub unsafe fn fat_ptr_get_ptr(
-        &self,
+        &mut self,
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         self.struct_gep(self.cx.ty_fat_ptr(), ptr, 0)
@@ -380,7 +380,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// # Safety
     /// Must not be called when a block that already contains a terminator is selected
     pub unsafe fn fat_ptr_get_meta(
-        &self,
+        &mut self,
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         self.struct_gep(self.cx.ty_fat_ptr(), ptr, 1)
@@ -389,7 +389,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// # Safety
     /// Must not be called when a block that already contains a terminator is selected
     pub unsafe fn fat_ptr_to_parts(
-        &self,
+        &mut self,
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMValue) {
         (self.fat_ptr_get_ptr(ptr), self.fat_ptr_get_meta(ptr))
@@ -404,7 +404,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         operands: &[&'ll llvm_sys::LLVMValue],
     ) -> &'ll llvm_sys::LLVMValue {
         let res = llvm_sys::core::LLVMBuildCall2(
-            self.llbuilder,
+            self.llbuilder as *const _ as *mut _,
             NonNull::from(fun_ty).as_ptr(),
             NonNull::from(fun).as_ptr(),
             operands.as_ptr() as *mut _,
@@ -477,7 +477,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     pub fn select_bb(&self, bb: Block) {
         unsafe {
             llvm_sys::core::LLVMPositionBuilderAtEnd(
-                self.llbuilder,
+                self.llbuilder as *const _ as *mut _,
                 NonNull::from(self.blocks[bb].unwrap()).as_ptr(),
             );
         }
@@ -488,7 +488,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         unsafe {
             let bb_ptr = NonNull::from(bb).as_ptr();
             let inst = llvm_sys::core::LLVMGetLastInstruction(bb_ptr);
-            llvm_sys::core::LLVMPositionBuilder(self.llbuilder, bb_ptr, inst);
+            llvm_sys::core::LLVMPositionBuilder(self.llbuilder as *const _ as *mut _, bb_ptr, inst);
         }
     }
     /// # Safety
@@ -530,7 +530,7 @@ impl<'ll> Builder<'_, '_, 'll> {
             mir::InstructionData::Binary { opcode, ref args } => (opcode, args.as_slice()),
             mir::InstructionData::Branch { cond, then_dst, else_dst, .. } => {
                 llvm_sys::core::LLVMBuildCondBr(
-                    NonNull::from(self.llbuilder).as_ptr(),
+                    self.llbuilder as *const _ as *mut _,
                     NonNull::from(self.values[cond].get(self)).as_ptr(),
                     NonNull::from(self.blocks[then_dst].unwrap()).as_ptr(),
                     NonNull::from(self.blocks[else_dst].unwrap()).as_ptr(),
@@ -912,7 +912,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// Must not be called when a block that already contains a terminator is selected
     pub unsafe fn store(&self, ptr: &'ll llvm_sys::LLVMValue, val: &'ll llvm_sys::LLVMValue) {
         llvm_sys::core::LLVMBuildStore(
-            self.llbuilder,
+            self.llbuilder as *const _ as *mut _,
             NonNull::from(val).as_ptr(),
             NonNull::from(ptr).as_ptr(),
         );
@@ -926,7 +926,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         NonNull::new(llvm_sys::core::LLVMBuildLoad2(
-            self.llbuilder,
+            self.llbuilder as *const _ as *mut _,
             NonNull::from(ty).as_ptr(),
             NonNull::from(ptr).as_ptr(),
             UNNAMED,
@@ -942,7 +942,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         val2: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         NonNull::new(llvm_sys::core::LLVMBuildMul(
-            self.llbuilder,
+            self.llbuilder as *const _ as *mut _,
             NonNull::from(val1).as_ptr(),
             NonNull::from(val2).as_ptr(),
             UNNAMED,
@@ -959,7 +959,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         val2: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         NonNull::new(llvm_sys::core::LLVMBuildAdd(
-            self.llbuilder,
+            self.llbuilder as *const _ as *mut _,
             NonNull::from(val1).as_ptr(),
             NonNull::from(val2).as_ptr(),
             UNNAMED,
@@ -977,7 +977,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         ptr2: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         NonNull::new(llvm_sys::core::LLVMBuildPtrDiff2(
-            self.llbuilder,
+            self.llbuilder as *const _ as *mut _,
             NonNull::from(ty).as_ptr(),
             NonNull::from(ptr1).as_ptr(),
             NonNull::from(ptr2).as_ptr(),
@@ -993,7 +993,7 @@ impl<'ll> Builder<'_, '_, 'll> {
     pub unsafe fn is_null_ptr(&self, ptr: &'ll llvm_sys::LLVMValue) -> &'ll llvm_sys::LLVMValue {
         let null_ptr = self.cx.const_null_ptr();
         NonNull::new(llvm_sys::core::LLVMBuildICmp(
-            self.llbuilder,
+            self.llbuilder as *const _ as *mut _,
             llvm_sys::LLVMIntPredicate::LLVMIntEQ,
             NonNull::from(null_ptr).as_ptr(),
             NonNull::from(ptr).as_ptr(),
@@ -1024,7 +1024,7 @@ impl<'ll> Builder<'_, '_, 'll> {
         predicate: llvm_sys::LLVMIntPredicate,
     ) -> &'ll llvm_sys::LLVMValue {
         NonNull::new(llvm_sys::core::LLVMBuildICmp(
-            self.llbuilder,
+            self.llbuilder as *const _ as *mut _,
             predicate,
             NonNull::from(lhs).as_ptr(),
             NonNull::from(rhs).as_ptr(),

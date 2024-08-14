@@ -97,7 +97,7 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
         } else {
             let name = CString::new(name).unwrap();
             let global = unsafe { llvm_sys::core::LLVMAddGlobal(NonNull::from(self.llmod).as_ptr(), NonNull::from(ty).as_ptr(), name.as_ptr()) };
-            Some(&*global)
+            Some(unsafe{&*global})
         }
     }
 
