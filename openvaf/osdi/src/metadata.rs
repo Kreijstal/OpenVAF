@@ -33,7 +33,11 @@ pub struct OsdiLimFunction {
 }
 
 impl OsdiLimFunction {
-    pub fn to_ll_val<'ll>(self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
+    pub fn to_ll_val<'ll>(
+        self,
+        ctx: &CodegenCx<'_, 'll>,
+        tys: &'ll OsdiTys,
+    ) -> &'ll llvm_sys::LLVMValue {
         osdi_0_3::OsdiLimFunction {
             name: ctx.literals.resolve(&self.name).to_owned(),
             num_args: self.num_args,

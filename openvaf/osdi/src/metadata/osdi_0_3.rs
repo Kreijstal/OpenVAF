@@ -79,7 +79,11 @@ pub struct OsdiLimFunction<'ll> {
     pub func_ptr: &'ll llvm_sys::LLVMValue,
 }
 impl<'ll> OsdiLimFunction<'ll> {
-    pub fn to_ll_val(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
+    pub fn to_ll_val(
+        &self,
+        ctx: &CodegenCx<'_, 'll>,
+        tys: &'ll OsdiTys,
+    ) -> &'ll llvm_sys::LLVMValue {
         let fields = [
             ctx.const_str_uninterned(&self.name),
             ctx.const_unsigned_int(self.num_args),
@@ -160,7 +164,11 @@ pub struct OsdiNodePair {
     pub node_2: u32,
 }
 impl OsdiNodePair {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
+    pub fn to_ll_val<'ll>(
+        &self,
+        ctx: &CodegenCx<'_, 'll>,
+        tys: &'ll OsdiTys,
+    ) -> &'ll llvm_sys::LLVMValue {
         let fields = [ctx.const_unsigned_int(self.node_1), ctx.const_unsigned_int(self.node_2)];
         let ty = tys.osdi_node_pair;
         ctx.const_struct(ty, &fields)
@@ -180,7 +188,11 @@ pub struct OsdiJacobianEntry {
     pub flags: u32,
 }
 impl OsdiJacobianEntry {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
+    pub fn to_ll_val<'ll>(
+        &self,
+        ctx: &CodegenCx<'_, 'll>,
+        tys: &'ll OsdiTys,
+    ) -> &'ll llvm_sys::LLVMValue {
         let fields = [
             self.nodes.to_ll_val(ctx, tys),
             ctx.const_unsigned_int(self.react_ptr_off),
@@ -209,7 +221,11 @@ pub struct OsdiNode {
     pub is_flow: bool,
 }
 impl OsdiNode {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
+    pub fn to_ll_val<'ll>(
+        &self,
+        ctx: &CodegenCx<'_, 'll>,
+        tys: &'ll OsdiTys,
+    ) -> &'ll llvm_sys::LLVMValue {
         let fields = [
             ctx.const_str_uninterned(&self.name),
             ctx.const_str_uninterned(&self.units),
@@ -250,7 +266,11 @@ pub struct OsdiParamOpvar {
     pub len: u32,
 }
 impl OsdiParamOpvar {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
+    pub fn to_ll_val<'ll>(
+        &self,
+        ctx: &CodegenCx<'_, 'll>,
+        tys: &'ll OsdiTys,
+    ) -> &'ll llvm_sys::LLVMValue {
         let arr_0: Vec<_> = self.name.iter().map(|it| ctx.const_str_uninterned(it)).collect();
         let fields = [
             ctx.const_arr_ptr(ctx.ty_ptr(), &arr_0),
@@ -278,7 +298,11 @@ pub struct OsdiNoiseSource {
     pub nodes: OsdiNodePair,
 }
 impl OsdiNoiseSource {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
+    pub fn to_ll_val<'ll>(
+        &self,
+        ctx: &CodegenCx<'_, 'll>,
+        tys: &'ll OsdiTys,
+    ) -> &'ll llvm_sys::LLVMValue {
         let fields = [ctx.const_str_uninterned(&self.name), self.nodes.to_ll_val(ctx, tys)];
         let ty = tys.osdi_noise_source;
         ctx.const_struct(ty, &fields)
@@ -331,7 +355,11 @@ pub struct OsdiDescriptor<'ll> {
     pub load_jacobian_tran: &'ll llvm_sys::LLVMValue,
 }
 impl<'ll> OsdiDescriptor<'ll> {
-    pub fn to_ll_val(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
+    pub fn to_ll_val(
+        &self,
+        ctx: &CodegenCx<'_, 'll>,
+        tys: &'ll OsdiTys,
+    ) -> &'ll llvm_sys::LLVMValue {
         let arr_3: Vec<_> = self.nodes.iter().map(|it| it.to_ll_val(ctx, tys)).collect();
         let arr_5: Vec<_> = self.jacobian_entries.iter().map(|it| it.to_ll_val(ctx, tys)).collect();
         let arr_7: Vec<_> = self.collapsible.iter().map(|it| it.to_ll_val(ctx, tys)).collect();

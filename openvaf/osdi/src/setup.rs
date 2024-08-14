@@ -1,11 +1,11 @@
 use hir_lower::{CallBackKind, ParamInfoKind, ParamKind, PlaceKind};
 
-use llvm_sys::LLVMIntPredicate::LLVMIntSLT;
 use llvm::{
     LLVMAppendBasicBlockInContext, LLVMBuildBr, LLVMBuildCondBr, LLVMBuildRetVoid,
     LLVMCreateBuilderInContext, LLVMDisposeBuilder, LLVMGetParam, LLVMPositionBuilderAtEnd,
     UNNAMED,
 };
+use llvm_sys::LLVMIntPredicate::LLVMIntSLT;
 use mir::ControlFlowGraph;
 use mir_llvm::{Builder, BuilderVal, CallbackFun, CodegenCx};
 use sim_back::SimUnknownKind;
@@ -38,7 +38,9 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         (llfunc, fn_type)
     }
 
-    fn invalid_param_err(cx: &CodegenCx<'_, 'll>) -> (&'ll llvm_sys::LLVMType, &'ll llvm_sys::LLVMValue) {
+    fn invalid_param_err(
+        cx: &CodegenCx<'_, 'll>,
+    ) -> (&'ll llvm_sys::LLVMType, &'ll llvm_sys::LLVMValue) {
         let val = cx
             .get_func_by_name("push_invalid_param_err")
             .expect("stdlib function push_invalid_param_err is missing");
@@ -69,9 +71,9 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let mut builder = Builder::new(cx, func, llfunc);
         let postorder: Vec<_> = cfg.postorder(func).collect();
 
-        let handle = unsafe { llvm::LLVMGetParam(llfunc, 0) };
-        let model = unsafe { llvm::LLVMGetParam(llfunc, 1) };
-        let simparam = unsafe { llvm::LLVMGetParam(llfunc, 2) };
+        let handle = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 0) };
+        let model = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 1) };
+        let simparam = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 2) };
 
         builder.params = vec![BuilderVal::Undef; intern.params.len()].into();
 
@@ -115,7 +117,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             }
         }
 
-        let res = unsafe { llvm::LLVMGetParam(llfunc, 3) };
+        let res = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 3) };
 
         let err_cap = unsafe { builder.alloca(cx.ty_int()) };
 
@@ -221,13 +223,13 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let intern = &module.init.intern;
         let mut builder = Builder::new(cx, func, llfunc);
 
-        let handle = unsafe { llvm::LLVMGetParam(llfunc, 0) };
-        let instance = unsafe { llvm::LLVMGetParam(llfunc, 1) };
-        let model = unsafe { llvm::LLVMGetParam(llfunc, 2) };
-        let temperature = unsafe { llvm::LLVMGetParam(llfunc, 3) };
-        let connected_terminals = unsafe { llvm::LLVMGetParam(llfunc, 4) };
-        let simparam = unsafe { llvm::LLVMGetParam(llfunc, 5) };
-        let res = unsafe { llvm::LLVMGetParam(llfunc, 6) };
+        let handle = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 0) };
+        let instance = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 1) };
+        let model = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 2) };
+        let temperature = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 3) };
+        let connected_terminals = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 4) };
+        let simparam = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 5) };
+        let res = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 6) };
 
         let ret_flags = unsafe { builder.alloca(cx.ty_int()) };
         unsafe { builder.store(ret_flags, cx.const_int(0)) };
@@ -302,7 +304,8 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                     }
 
                     let id = cx.const_unsigned_int(node_id.into());
-                    let is_connected = unsafe { builder.int_cmp(id, connected_terminals, LLVMIntSLT) };
+                    let is_connected =
+                        unsafe { builder.int_cmp(id, connected_terminals, LLVMIntSLT) };
                     builder.params[dst] = BuilderVal::Eager(is_connected)
                 }
             }

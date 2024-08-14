@@ -4,7 +4,9 @@ use std::process::exit;
 use anyhow::{bail, Context, Result};
 use camino::Utf8PathBuf;
 use clap::ArgMatches;
-use openvaf::{builtin_lints, get_target_names, host_triple, AbsPathBuf, LintLevel, LLVMCodeGenOptLevel};
+use openvaf::{
+    builtin_lints, get_target_names, host_triple, AbsPathBuf, LLVMCodeGenOptLevel, LintLevel,
+};
 use termcolor::{Color, ColorChoice, ColorSpec, WriteColor};
 
 use crate::cli_def::{

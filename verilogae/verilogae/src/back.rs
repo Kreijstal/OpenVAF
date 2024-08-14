@@ -5,8 +5,8 @@ use hir::Type;
 use hir_lower::{CallBackKind, CurrentKind, HirInterner, ParamInfoKind, ParamKind, PlaceKind};
 use lasso::Rodeo;
 use llvm_sys::target_machine::LLVMCodeGenOptLevel;
-use mir_llvm::{UNNAMED};
 use mir::{ControlFlowGraph, FuncRef, Function};
+use mir_llvm::UNNAMED;
 use mir_llvm::{Builder, BuilderVal, CallbackFun, CodegenCx, LLVMBackend};
 use stdx::iter::multiunzip;
 use typed_index_collections::TiVec;
@@ -95,7 +95,12 @@ struct Codegen<'a, 'b, 'll> {
 }
 
 impl<'ll> Codegen<'_, '_, 'll> {
-    unsafe fn read_depbreak(&mut self, offset: &'ll llvm_sys::LLVMValue, ptr: &'ll llvm_sys::LLVMValue, ty: Type) {
+    unsafe fn read_depbreak(
+        &mut self,
+        offset: &'ll llvm_sys::LLVMValue,
+        ptr: &'ll llvm_sys::LLVMValue,
+        ty: Type,
+    ) {
         let vars =
             self.spec.dependency_breaking.iter().copied().filter(|var| var.ty(self.db) == ty);
         let llty = lltype(&ty, self.builder.cx);
@@ -133,7 +138,12 @@ impl<'ll> Codegen<'_, '_, 'll> {
         self.export_names(names, &global_name);
     }
 
-    unsafe fn read_params(&mut self, offset: &'ll llvm_sys::LLVMValue, ptr: &'ll llvm_sys::LLVMValue, ty: Type) {
+    unsafe fn read_params(
+        &mut self,
+        offset: &'ll llvm_sys::LLVMValue,
+        ptr: &'ll llvm_sys::LLVMValue,
+        ty: Type,
+    ) {
         let params = self.intern.live_params(&self.func.dfg).filter_map(|(id, kind, _)| {
             if let ParamKind::Param(param) = kind {
                 (param.ty(self.db) == ty).then_some((id, *param))
@@ -152,7 +162,11 @@ impl<'ll> Codegen<'_, '_, 'll> {
         self.export_names(names, &global_name);
     }
 
-    unsafe fn read_voltages(&mut self, offset: &'ll llvm_sys::LLVMValue, ptr: &'ll llvm_sys::LLVMValue) {
+    unsafe fn read_voltages(
+        &mut self,
+        offset: &'ll llvm_sys::LLVMValue,
+        ptr: &'ll llvm_sys::LLVMValue,
+    ) {
         let voltages = self.intern.live_params(&self.func.dfg).filter_map(|(id, kind, _)| {
             if let ParamKind::Voltage { hi, lo } = kind {
                 Some((id, (*hi, *lo)))
@@ -195,7 +209,11 @@ impl<'ll> Codegen<'_, '_, 'll> {
         self.export_names(names, &global_name);
     }
 
-    unsafe fn read_currents(&mut self, offset: &'ll llvm_sys::LLVMValue, ptr: &'ll llvm_sys::LLVMValue) {
+    unsafe fn read_currents(
+        &mut self,
+        offset: &'ll llvm_sys::LLVMValue,
+        ptr: &'ll llvm_sys::LLVMValue,
+    ) {
         let voltages = self.intern.live_params(&self.func.dfg).filter_map(|(id, kind, _)| {
             if let ParamKind::Current(kind) = kind {
                 Some((id, *kind))
@@ -326,7 +344,7 @@ impl CodegenCtx<'_, '_> {
 
         // read parameters
 
-        let offset = unsafe { llvm::LLVMGetParam(llfun, 0) };
+        let offset = unsafe { llvm_sys::core::LLVMGetParam(llfun, 0) };
 
         let true_val = cx.const_bool(true);
         codegen.builder.params = intern
@@ -344,7 +362,7 @@ impl CodegenCtx<'_, '_> {
                     | ParamKind::Current(_)
                     | ParamKind::HiddenState(_) => return BuilderVal::Undef,
                     ParamKind::Temperature => unsafe {
-                        let temperature = llvm::LLVMGetParam(llfun, 8);
+                        let temperature = llvm_sys::core::LLVMGetParam(llfun, 8);
                         codegen.read_fat_ptr_at(0, offset, temperature, cx.ty_double())
                     },
                     ParamKind::ParamGiven { .. } | ParamKind::PortConnected { .. } => true_val,
@@ -364,25 +382,25 @@ impl CodegenCtx<'_, '_> {
             })
             .collect();
 
-        let voltages = unsafe { llvm::LLVMGetParam(llfun, 1) };
+        let voltages = unsafe { llvm_sys::core::LLVMGetParam(llfun, 1) };
         unsafe { codegen.read_voltages(offset, voltages) };
 
-        let currents = unsafe { llvm::LLVMGetParam(llfun, 2) };
+        let currents = unsafe { llvm_sys::core::LLVMGetParam(llfun, 2) };
         unsafe { codegen.read_currents(offset, currents) };
 
-        let real_params = unsafe { llvm::LLVMGetParam(llfun, 3) };
+        let real_params = unsafe { llvm_sys::core::LLVMGetParam(llfun, 3) };
         unsafe { codegen.read_params(offset, real_params, Type::Real) };
 
-        let int_params = unsafe { llvm::LLVMGetParam(llfun, 4) };
+        let int_params = unsafe { llvm_sys::core::LLVMGetParam(llfun, 4) };
         unsafe { codegen.read_params(offset, int_params, Type::Integer) };
 
-        let str_params = unsafe { llvm::LLVMGetParam(llfun, 5) };
+        let str_params = unsafe { llvm_sys::core::LLVMGetParam(llfun, 5) };
         unsafe { codegen.read_str_params(str_params) };
 
-        let real_dep_break = unsafe { llvm::LLVMGetParam(llfun, 6) };
+        let real_dep_break = unsafe { llvm_sys::core::LLVMGetParam(llfun, 6) };
         unsafe { codegen.read_depbreak(offset, real_dep_break, Type::Real) };
 
-        let int_dep_break = unsafe { llvm::LLVMGetParam(llfun, 7) };
+        let int_dep_break = unsafe { llvm_sys::core::LLVMGetParam(llfun, 7) };
         unsafe { codegen.read_depbreak(offset, int_dep_break, Type::Integer) };
 
         // setup callbacks
@@ -407,7 +425,7 @@ impl CodegenCtx<'_, '_> {
             // write the return value
             builder.select_bb(exit_bb);
 
-            let out = llvm::LLVMGetParam(llfun, 9);
+            let out = llvm_sys::core::LLVMGetParam(llfun, 9);
             let out = builder.gep(ret_ty, out, &[offset]);
 
             let ret_val = intern.outputs[&PlaceKind::Var(spec.var)].unwrap();
@@ -467,7 +485,11 @@ impl CodegenCtx<'_, '_> {
                 let off = builder.cx.const_usize(param_given_offset + offset);
                 let ptr = builder.gep(builder.cx.ty_c_bool(), param_given_ptr, &[off]);
                 let cbool = builder.load(builder.cx.ty_c_bool(), ptr);
-                builder.int_cmp(cbool, builder.cx.const_c_bool(false), llvm_sys::LLVMIntPredicate::LLVMIntNE)
+                builder.int_cmp(
+                    cbool,
+                    builder.cx.const_c_bool(false),
+                    llvm_sys::LLVMIntPredicate::LLVMIntNE,
+                )
             };
 
             let val_id = intern.params.unwrap_index(&ParamKind::Param(*param));
@@ -537,8 +559,8 @@ impl CodegenCtx<'_, '_> {
             let bb = llvm::LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
             let builder = llvm::LLVMCreateBuilderInContext(cx.llcx);
             llvm::LLVMPositionBuilderAtEnd(builder, bb);
-            let ptr = llvm::LLVMGetParam(fun, 0);
-            let flag = llvm::LLVMGetParam(fun, 1);
+            let ptr = llvm_sys::core::LLVMGetParam(fun, 0);
+            let flag = llvm_sys::core::LLVMGetParam(fun, 1);
             let val = llvm::LLVMBuildLoad2(builder, cx.ty_c_bool(), ptr, UNNAMED);
             let val = if set {
                 llvm::LLVMBuildOr(builder, val, flag, UNNAMED)
@@ -619,7 +641,11 @@ impl CodegenCtx<'_, '_> {
         param_init_func: Function,
         param_init_intern: HirInterner,
     ) {
-        let module = unsafe { self.llbackend.new_module("model_info", LLVMCodeGenOptLevel::LLVMCodeGenLevelNone).unwrap() };
+        let module = unsafe {
+            self.llbackend
+                .new_module("model_info", LLVMCodeGenOptLevel::LLVMCodeGenLevelNone)
+                .unwrap()
+        };
         let cx = unsafe { self.llbackend.new_ctx(self.literals, &module) };
 
         let (fun_names, fun_symbols) = interned_model.functions(&cx);
@@ -690,9 +716,9 @@ impl CodegenCtx<'_, '_> {
             })
             .collect();
 
-        let param_flags = unsafe { llvm::LLVMGetParam(llfun, 7) };
+        let param_flags = unsafe { llvm_sys::core::LLVMGetParam(llfun, 7) };
 
-        let param_val_real = unsafe { llvm::LLVMGetParam(llfun, 0) };
+        let param_val_real = unsafe { llvm_sys::core::LLVMGetParam(llfun, 0) };
         let real_cnt = self.read_params(
             &param_init_intern,
             Type::Real,
@@ -702,7 +728,7 @@ impl CodegenCtx<'_, '_> {
             0,
         );
 
-        let param_val_int = unsafe { llvm::LLVMGetParam(llfun, 1) };
+        let param_val_int = unsafe { llvm_sys::core::LLVMGetParam(llfun, 1) };
         let int_cnt = self.read_params(
             &param_init_intern,
             Type::Integer,
@@ -712,7 +738,7 @@ impl CodegenCtx<'_, '_> {
             real_cnt,
         );
 
-        let param_val_str = unsafe { llvm::LLVMGetParam(llfun, 2) };
+        let param_val_str = unsafe { llvm_sys::core::LLVMGetParam(llfun, 2) };
         self.read_params(
             &param_init_intern,
             Type::String,
@@ -747,8 +773,8 @@ impl CodegenCtx<'_, '_> {
             // write the return values
             builder.select_bb(postorder[0]);
 
-            let param_min_real = llvm::LLVMGetParam(llfun, 3);
-            let param_max_real = llvm::LLVMGetParam(llfun, 5);
+            let param_min_real = llvm_sys::core::LLVMGetParam(llfun, 3);
+            let param_max_real = llvm_sys::core::LLVMGetParam(llfun, 5);
             self.write_params(
                 &param_init_intern,
                 Type::Real,
@@ -757,8 +783,8 @@ impl CodegenCtx<'_, '_> {
                 Some((param_min_real, param_max_real)),
             );
 
-            let param_min_int = llvm::LLVMGetParam(llfun, 4);
-            let param_max_int = llvm::LLVMGetParam(llfun, 6);
+            let param_min_int = llvm_sys::core::LLVMGetParam(llfun, 4);
+            let param_max_int = llvm_sys::core::LLVMGetParam(llfun, 6);
             self.write_params(
                 &param_init_intern,
                 Type::Integer,

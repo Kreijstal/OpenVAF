@@ -9,7 +9,8 @@ use libc::c_void;
 use libloading::Library;
 use log::{debug, error, info, warn};
 use openvaf::{
-    AbsPathBuf, CompilationDestination, CompilationTermination, LintLevel, LLVMCodeGenOptLevel, Target,
+    AbsPathBuf, CompilationDestination, CompilationTermination, LLVMCodeGenOptLevel, LintLevel,
+    Target,
 };
 
 use crate::devices::DeviceImpl;

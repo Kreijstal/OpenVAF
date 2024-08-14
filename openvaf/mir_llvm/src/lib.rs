@@ -204,7 +204,6 @@ impl Drop for LLVMBackend<'_> {
     fn drop(&mut self) {}
 }
 
-
 extern "C" fn diagnostic_handler(info: *mut llvm_sys::LLVMDiagnosticInfo, _: *mut c_void) {
     unsafe {
         let severity = LLVMGetDiagInfoSeverity(info);
@@ -241,14 +240,15 @@ pub unsafe fn create_target(
     code_model: llvm_sys::target_machine::LLVMCodeModel,
 ) -> Result<llvm_sys::target_machine::LLVMTargetMachineRef, LLVMString> {
     let triple_ = LLVMString::create_from_c_str(&CString::new(triple).unwrap());
-    let triple_ = LLVMString::new(llvm_sys::target_machine::LLVMNormalizeTargetTriple(triple_.as_ptr()));
+    let triple_ =
+        LLVMString::new(llvm_sys::target_machine::LLVMNormalizeTargetTriple(triple_.as_ptr()));
     let mut target: llvm_sys::target_machine::LLVMTargetRef = std::ptr::null_mut();
     let mut err_string = MaybeUninit::uninit();
 
     let code = llvm_sys::target_machine::LLVMGetTargetFromTriple(
         triple_.as_ptr(),
         &mut target,
-        err_string.as_mut_ptr()
+        err_string.as_mut_ptr(),
     );
 
     if code == 1 {
@@ -281,7 +281,7 @@ pub unsafe fn create_target(
 }
 
 /*
- 
+
 pub unsafe fn create_target(
     triple: &str,
     cpu: &str,
@@ -326,7 +326,6 @@ pub unsafe fn create_target(
 }
 
  * */
-
 
 pub unsafe fn set_normalized_target(module: llvm_sys::prelude::LLVMModuleRef, triple: &str) {
     let triple_c = to_c_string(triple);
@@ -445,7 +444,11 @@ impl ModuleLlvm {
     }
 
     pub fn to_str(&self) -> LLVMString {
-        unsafe { LLVMString::new(llvm_sys::core::LLVMPrintModuleToString(NonNull::from(self.llmod()).as_ptr())) }
+        unsafe {
+            LLVMString::new(llvm_sys::core::LLVMPrintModuleToString(
+                NonNull::from(self.llmod()).as_ptr(),
+            ))
+        }
     }
 
     pub fn llmod(&self) -> &llvm_sys::LLVMModule {
@@ -476,7 +479,12 @@ impl ModuleLlvm {
             let opt_level_cstring = CString::new(opt_level).unwrap();
 
             // Run passes
-            let error = LLVMRunPasses(NonNull::from(self.llmod()).as_ptr(), opt_level_cstring.as_ptr(), self.tm, options);
+            let error = LLVMRunPasses(
+                NonNull::from(self.llmod()).as_ptr(),
+                opt_level_cstring.as_ptr(),
+                self.tm,
+                options,
+            );
 
             // Check for errors
             if !error.is_null() {
@@ -499,40 +507,40 @@ impl ModuleLlvm {
     /// # Returns
     /// Whether this module is valid (true if valid)
     pub fn verify_and_print(&self) -> bool {
-    unsafe {
-        llvm_sys::analysis::LLVMVerifyModule(
-            self.llmod_raw, // Use the raw pointer directly
-            llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction,
-            std::ptr::null_mut(), // Use null pointer instead of None
-        ) == 0
+        unsafe {
+            llvm_sys::analysis::LLVMVerifyModule(
+                self.llmod_raw, // Use the raw pointer directly
+                llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction,
+                std::ptr::null_mut(), // Use null pointer instead of None
+            ) == 0
+        }
     }
-}
 
     /// Verifies this module and prints out an error for any errors
     ///
     /// # Returns
     /// An error messages in case the module invalid
     pub fn verify(&self) -> Option<LLVMString> {
-    unsafe {
-        let mut out_message: *mut i8 = std::ptr::null_mut();
-        if llvm_sys::analysis::LLVMVerifyModule(
-            self.llmod_raw,
-            llvm_sys::analysis::LLVMVerifierFailureAction::LLVMReturnStatusAction,
-            &mut out_message,
-        ) == 1
-        {
-            if !out_message.is_null() {
-                let message = LLVMString::new(out_message);
-                llvm_sys::core::LLVMDisposeMessage(out_message);
-                Some(message)
+        unsafe {
+            let mut out_message: *mut i8 = std::ptr::null_mut();
+            if llvm_sys::analysis::LLVMVerifyModule(
+                self.llmod_raw,
+                llvm_sys::analysis::LLVMVerifierFailureAction::LLVMReturnStatusAction,
+                &mut out_message,
+            ) == 1
+            {
+                if !out_message.is_null() {
+                    let message = LLVMString::new(out_message);
+                    llvm_sys::core::LLVMDisposeMessage(out_message);
+                    Some(message)
+                } else {
+                    None
+                }
             } else {
                 None
             }
-        } else {
-            None
         }
     }
-}
 
     pub fn emit_object(&self, dst: &Path) -> Result<(), LLVMString> {
         let path = CString::new(dst.to_str().unwrap()).unwrap();

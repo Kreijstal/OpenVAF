@@ -1,11 +1,11 @@
 use hir_lower::{CallBackKind, CurrentKind, LimitState, ParamKind};
-use llvm_sys::LLVMIntPredicate::{LLVMIntNE, LLVMIntULT};
 use llvm::{
     LLVMAppendBasicBlockInContext, LLVMBuildAlloca, LLVMBuildAnd, LLVMBuildBr, LLVMBuildCall2,
     LLVMBuildCondBr, LLVMBuildICmp, LLVMBuildInBoundsGEP2, LLVMBuildIntCast2, LLVMBuildLoad2,
     LLVMBuildOr, LLVMBuildRet, LLVMBuildStore, LLVMCreateBuilderInContext, LLVMDisposeBuilder,
     LLVMGetParam, LLVMPositionBuilderAtEnd, UNNAMED,
 };
+use llvm_sys::LLVMIntPredicate::{LLVMIntNE, LLVMIntULT};
 use log::info;
 use mir_llvm::{Builder, BuilderVal, CallbackFun, MemLoc};
 use sim_back::SimUnknownKind;
@@ -42,10 +42,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
         let mut builder = Builder::new(cx, func, llfunc);
 
-        let handle = unsafe { llvm::LLVMGetParam(llfunc, 0) };
-        let instance = unsafe { llvm::LLVMGetParam(llfunc, 1) };
-        let model = unsafe { llvm::LLVMGetParam(llfunc, 2) };
-        let sim_info = unsafe { llvm::LLVMGetParam(llfunc, 3) };
+        let handle = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 0) };
+        let instance = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 1) };
+        let model = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 2) };
+        let sim_info = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 3) };
         let sim_info_ty = self.tys.osdi_sim_info;
 
         // let simparam_ty = self.tys.osdi_sim_paras;

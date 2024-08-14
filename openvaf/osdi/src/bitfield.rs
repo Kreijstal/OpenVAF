@@ -1,11 +1,10 @@
 use std::mem::size_of;
 
-use llvm_sys::LLVMIntPredicate::{LLVMIntEQ, LLVMIntNE};
-use llvm::{
+use llvm_sys::core::{
     LLVMBuildAnd, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildLoad2, LLVMBuildOr, LLVMBuildStore,
-    UNNAMED,
 };
-use mir_llvm::{CodegenCx, MemLoc};
+use llvm_sys::LLVMIntPredicate::{LLVMIntEQ, LLVMIntNE};
+use mir_llvm::{CodegenCx, MemLoc,UNNAMED};
 
 type Word = u32;
 

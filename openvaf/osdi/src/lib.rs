@@ -3,8 +3,8 @@ use camino::{Utf8Path, Utf8PathBuf};
 use hir::{CompilationDB, ParamSysFun, Type};
 use hir_lower::{CallBackKind, HirInterner, ParamKind};
 use lasso::Rodeo;
+use llvm_sys::target::LLVMDisposeTargetData;
 use llvm_sys::target_machine::LLVMCodeGenOptLevel;
-use llvm::{LLVMDisposeTargetData};
 use mir_llvm::{CodegenCx, LLVMBackend};
 use salsa::ParallelDatabase;
 use sim_back::{CompiledModule, ModuleInfo};
@@ -214,9 +214,9 @@ pub fn compile(
         let val = cx.const_null_ptr();
         unsafe {
             llvm::LLVMSetInitializer(osdi_log, val);
-            llvm::LLVMSetLinkage(osdi_log, llvm::Linkage::ExternalLinkage);
-            llvm::LLVMSetUnnamedAddress(osdi_log, llvm::UnnamedAddr::No);
-            llvm::LLVMSetDLLStorageClass(osdi_log, llvm::DLLStorageClass::Export);
+            llvm::LLVMSetLinkage(osdi_log, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
+            llvm::LLVMSetUnnamedAddress(osdi_log, llvm_sys::LLVMUnnamedAddr::LLVMNoUnnamedAddr);
+            llvm::LLVMSetDLLStorageClass(osdi_log, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
         }
 
         debug_assert!(llmod.verify_and_print());

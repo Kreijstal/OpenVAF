@@ -1,9 +1,10 @@
-use llvm_sys::LLVMIntPredicate::LLVMIntNE;
-use llvm::{
+use llvm_sys::core::{
     LLVMAddCase, LLVMAppendBasicBlockInContext, LLVMBuildAnd, LLVMBuildBr, LLVMBuildCondBr,
     LLVMBuildICmp, LLVMBuildRet, LLVMBuildSwitch, LLVMCreateBuilderInContext, LLVMDisposeBuilder,
-    LLVMGetParam, LLVMPositionBuilderAtEnd, UNNAMED,
+    LLVMGetParam, LLVMPositionBuilderAtEnd,
 };
+use llvm_sys::LLVMIntPredicate::LLVMIntNE;
+use mir_llvm::UNNAMED;
 
 use crate::compilation_unit::OsdiCompilationUnit;
 use crate::metadata::osdi_0_3::{ACCESS_FLAG_INSTANCE, ACCESS_FLAG_SET};

@@ -11,10 +11,18 @@ use crate::api::{LLVMCodeGenOptLevel, Opts, Slice};
 impl From<LLVMCodeGenOptLevel> for llvm_sys::target_machine::LLVMCodeGenOptLevel {
     fn from(lvl: LLVMCodeGenOptLevel) -> Self {
         match lvl {
-            LLVMCodeGenOptLevel::LLVMCodeGenLevelNone => llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelNone,
-            LLVMCodeGenOptLevel::LLVMCodeGenLevelLess => llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelLess,
-            LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault => llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault,
-            LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive => llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive,
+            LLVMCodeGenOptLevel::LLVMCodeGenLevelNone => {
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelNone
+            }
+            LLVMCodeGenOptLevel::LLVMCodeGenLevelLess => {
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelLess
+            }
+            LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault => {
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault
+            }
+            LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive => {
+                llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive
+            }
         }
     }
 }

@@ -24,8 +24,13 @@ impl<'ll> CodegenCx<'_, 'll> {
         let fun_ty = self.ty_func(args, self.val_ty(val));
         let fun = self.declare_int_fn(&name, fun_ty);
         unsafe {
-            let bb = llvm_sys::core::LLVMAppendBasicBlockInContext(NonNull::from(self.llcx).as_ptr(), NonNull::from(fun).as_ptr(), UNNAMED);
-            let builder = llvm_sys::core::LLVMCreateBuilderInContext(NonNull::from(self.llcx).as_ptr());
+            let bb = llvm_sys::core::LLVMAppendBasicBlockInContext(
+                NonNull::from(self.llcx).as_ptr(),
+                NonNull::from(fun).as_ptr(),
+                UNNAMED,
+            );
+            let builder =
+                llvm_sys::core::LLVMCreateBuilderInContext(NonNull::from(self.llcx).as_ptr());
             llvm_sys::core::LLVMPositionBuilderAtEnd(builder, bb);
             llvm_sys::core::LLVMBuildRet(builder, NonNull::from(val).as_ptr());
             llvm_sys::core::LLVMDisposeBuilder(builder);
@@ -39,8 +44,13 @@ impl<'ll> CodegenCx<'_, 'll> {
         let fun_ty = self.ty_func(args, self.ty_void());
         let fun = self.declare_int_fn(&name, fun_ty);
         unsafe {
-            let bb = llvm_sys::core::LLVMAppendBasicBlockInContext(NonNull::from(self.llcx).as_ptr(), NonNull::from(fun).as_ptr(), UNNAMED);
-            let builder = llvm_sys::core::LLVMCreateBuilderInContext(NonNull::from(self.llcx).as_ptr());
+            let bb = llvm_sys::core::LLVMAppendBasicBlockInContext(
+                NonNull::from(self.llcx).as_ptr(),
+                NonNull::from(fun).as_ptr(),
+                UNNAMED,
+            );
+            let builder =
+                llvm_sys::core::LLVMCreateBuilderInContext(NonNull::from(self.llcx).as_ptr());
             llvm_sys::core::LLVMPositionBuilderAtEnd(builder, bb);
             llvm_sys::core::LLVMBuildRetVoid(builder);
             llvm_sys::core::LLVMDisposeBuilder(builder);
@@ -54,11 +64,16 @@ impl<'ll> CodegenCx<'_, 'll> {
         let fun_ty = self.ty_func(args, args[idx]);
         let fun = self.declare_int_fn(&name, fun_ty);
         unsafe {
-            let bb = llvm_sys::core::LLVMAppendBasicBlockInContext(NonNull::from(self.llcx).as_ptr(), NonNull::from(fun).as_ptr(), UNNAMED);
-            let builder = llvm_sys::core::LLVMCreateBuilderInContext(NonNull::from(self.llcx).as_ptr());
+            let bb = llvm_sys::core::LLVMAppendBasicBlockInContext(
+                NonNull::from(self.llcx).as_ptr(),
+                NonNull::from(fun).as_ptr(),
+                UNNAMED,
+            );
+            let builder =
+                llvm_sys::core::LLVMCreateBuilderInContext(NonNull::from(self.llcx).as_ptr());
             llvm_sys::core::LLVMPositionBuilderAtEnd(builder, bb);
             let val = llvm_sys::core::LLVMGetParam(NonNull::from(fun).as_ptr(), idx as u32);
-            llvm_sys::core::LLVMBuildRet(builder,val);
+            llvm_sys::core::LLVMBuildRet(builder, val);
             llvm_sys::core::LLVMDisposeBuilder(builder);
         }
         CallbackFun { fun_ty, fun, state: Box::new([]), num_state: 0 }

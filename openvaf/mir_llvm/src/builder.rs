@@ -298,20 +298,20 @@ impl<'ll> Builder<'_, '_, 'll> {
     /// Only correct llvm api calls must be performed within build_then and build_else
     /// Their return types must match and cond must be a bool
     pub unsafe fn select(
-    &mut self,
-    cond: &'ll llvm_sys::LLVMValue,
-    then_val: &'ll llvm_sys::LLVMValue,
-    else_val: &'ll llvm_sys::LLVMValue,
-) -> &'ll llvm_sys::LLVMValue {
-    let result = llvm_sys::core::LLVMBuildSelect(
-        self.llbuilder,
-        NonNull::from(cond).as_ptr(),
-        NonNull::from(then_val).as_ptr(),
-        NonNull::from(else_val).as_ptr(),
-        UNNAMED,
-    );
-    &*(result as *const _)
-}
+        &mut self,
+        cond: &'ll llvm_sys::LLVMValue,
+        then_val: &'ll llvm_sys::LLVMValue,
+        else_val: &'ll llvm_sys::LLVMValue,
+    ) -> &'ll llvm_sys::LLVMValue {
+        let result = llvm_sys::core::LLVMBuildSelect(
+            self.llbuilder,
+            NonNull::from(cond).as_ptr(),
+            NonNull::from(then_val).as_ptr(),
+            NonNull::from(else_val).as_ptr(),
+            UNNAMED,
+        );
+        &*(result as *const _)
+    }
 
     /// # SAFETY
     /// Must not be called when a block that already contains a terminator is selected

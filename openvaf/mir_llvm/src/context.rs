@@ -16,7 +16,6 @@ use target::spec::Target;
 use crate::types::Types;
 use std::ptr::NonNull;
 
-
 pub struct CodegenCx<'a, 'll> {
     pub llmod: &'ll llvm_sys::LLVMModule,
     pub llcx: &'ll llvm_sys::LLVMContext,
@@ -54,40 +53,45 @@ impl<'a, 'll> CodegenCx<'a, 'll> {
 
     pub fn get_func_by_name(&self, name: &str) -> Option<&'ll Value> {
         let name = CString::new(name).unwrap();
-unsafe {
-        let ptr = LLVMGetNamedFunction(NonNull::from(self.llmod).as_ptr(), name.as_ptr());
-        if ptr.is_null() {
-            None
-        } else {
-            Some(&*(ptr as *const Value))
+        unsafe {
+            let ptr = LLVMGetNamedFunction(NonNull::from(self.llmod).as_ptr(), name.as_ptr());
+            if ptr.is_null() {
+                None
+            } else {
+                Some(&*(ptr as *const Value))
+            }
         }
     }
-    }
 
-pub fn include_bitcode(&self, bitcode: &[u8]) {
-    let sym = self.generate_local_symbol_name("bitcode_buffer");
-    let sym = CString::new(sym).unwrap();
-    unsafe {
-        let buff = LLVMCreateMemoryBufferWithMemoryRange(
-            bitcode.as_ptr() as *const c_char,
-            bitcode.len(),
-            sym.as_ptr(),
-            0,
-        );
-        let mut module: *mut llvm_sys::LLVMModule = std::ptr::null_mut();
-        assert!(
-            LLVMParseBitcodeInContext2(NonNull::from(self.llcx).as_ptr(), buff, &mut module) == 0,
-            "failed to parse bitcode"
-        );
-        assert!(!module.is_null(), "parsed module is null");
-        assert!(
-            LLVMLinkModules2(NonNull::from(self.llmod).as_ptr(), module) == 0,
-            "failed to link parsed bitcode"
-        );
+    pub fn include_bitcode(&self, bitcode: &[u8]) {
+        let sym = self.generate_local_symbol_name("bitcode_buffer");
+        let sym = CString::new(sym).unwrap();
+        unsafe {
+            let buff = LLVMCreateMemoryBufferWithMemoryRange(
+                bitcode.as_ptr() as *const c_char,
+                bitcode.len(),
+                sym.as_ptr(),
+                0,
+            );
+            let mut module: *mut llvm_sys::LLVMModule = std::ptr::null_mut();
+            assert!(
+                LLVMParseBitcodeInContext2(NonNull::from(self.llcx).as_ptr(), buff, &mut module)
+                    == 0,
+                "failed to parse bitcode"
+            );
+            assert!(!module.is_null(), "parsed module is null");
+            assert!(
+                LLVMLinkModules2(NonNull::from(self.llmod).as_ptr(), module) == 0,
+                "failed to link parsed bitcode"
+            );
+        }
     }
-}
     pub fn to_str(&self) -> LLVMString {
-        unsafe { LLVMString::new(llvm_sys::core::LLVMPrintModuleToString(NonNull::from(self.llmod).as_ptr())) }
+        unsafe {
+            LLVMString::new(llvm_sys::core::LLVMPrintModuleToString(
+                NonNull::from(self.llmod).as_ptr(),
+            ))
+        }
     }
 
     pub fn const_str_uninterned(&self, lit: &str) -> &'ll Value {
@@ -113,7 +117,7 @@ pub fn include_bitcode(&self, bitcode: &[u8]) {
             )
         };
         let sym = self.generate_local_symbol_name("str");
-        let ty = self.val_ty(unsafe{&*val});
+        let ty = self.val_ty(unsafe { &*val });
         let global = self
             .define_global(&sym, ty)
             .unwrap_or_else(|| unreachable!("symbol {} already defined", sym));
@@ -121,7 +125,10 @@ pub fn include_bitcode(&self, bitcode: &[u8]) {
         unsafe {
             llvm_sys::core::LLVMSetInitializer(NonNull::from(global).as_ptr(), val);
             llvm_sys::core::LLVMSetGlobalConstant(NonNull::from(global).as_ptr(), 1);
-            llvm_sys::core::LLVMSetLinkage(NonNull::from(global).as_ptr(), llvm_sys::LLVMLinkage::LLVMInternalLinkage);
+            llvm_sys::core::LLVMSetLinkage(
+                NonNull::from(global).as_ptr(),
+                llvm_sys::LLVMLinkage::LLVMInternalLinkage,
+            );
         }
         self.str_lit_cache.borrow_mut().insert(lit, global);
         global
