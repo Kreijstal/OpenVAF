@@ -14,7 +14,7 @@ use crate::compilation_unit::{general_callbacks, OsdiCompilationUnit};
 use crate::inst_data::OsdiInstanceParam;
 
 impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
-    fn mark_collapsed(&self) -> (&'ll llvm::Value, &'ll llvm::Type) {
+    fn mark_collapsed(&self) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let OsdiCompilationUnit { inst_data, cx, .. } = self;
         let fn_type = cx.ty_func(&[cx.ty_ptr(), cx.ty_int()], cx.ty_void());
         let name = &format!("collapse_{}", &self.module.sym);
@@ -38,7 +38,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         (llfunc, fn_type)
     }
 
-    fn invalid_param_err(cx: &CodegenCx<'_, 'll>) -> (&'ll llvm::Type, &'ll llvm::Value) {
+    fn invalid_param_err(cx: &CodegenCx<'_, 'll>) -> (&'ll llvm_sys::LLVMType, &'ll llvm_sys::LLVMValue) {
         let val = cx
             .get_func_by_name("push_invalid_param_err")
             .expect("stdlib function push_invalid_param_err is missing");
@@ -48,7 +48,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         (ty, val)
     }
 
-    pub fn setup_model_prototype(&self) -> &'ll llvm::Value {
+    pub fn setup_model_prototype(&self) -> &'ll llvm_sys::LLVMValue {
         let cx = &self.cx;
         let name = &format!("setup_model_{}", &self.module.sym);
 
@@ -57,7 +57,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         cx.declare_ext_fn(name, fun_ty)
     }
 
-    pub fn setup_model(&self) -> &'ll llvm::Value {
+    pub fn setup_model(&self) -> &'ll llvm_sys::LLVMValue {
         let llfunc = self.setup_model_prototype();
         let OsdiCompilationUnit { inst_data, model_data, tys, cx, .. } = self;
 
@@ -189,7 +189,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         llfunc
     }
 
-    pub fn setup_instance_prototype(&self) -> &'ll llvm::Value {
+    pub fn setup_instance_prototype(&self) -> &'ll llvm_sys::LLVMValue {
         let name = &format!("setup_instance_{}", &self.module.sym);
         let cx = &self.cx;
 
@@ -212,7 +212,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         cx.declare_ext_fn(name, fun_ty)
     }
 
-    pub fn setup_instance(&mut self) -> &'ll llvm::Value {
+    pub fn setup_instance(&mut self) -> &'ll llvm_sys::LLVMValue {
         let mark_collapsed = self.mark_collapsed();
         let llfunc = self.setup_instance_prototype();
         let OsdiCompilationUnit { inst_data, model_data, tys, cx, module, .. } = self;

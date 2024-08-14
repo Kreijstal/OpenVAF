@@ -9,7 +9,7 @@ use crate::compilation_unit::OsdiCompilationUnit;
 use crate::metadata::osdi_0_3::{ACCESS_FLAG_INSTANCE, ACCESS_FLAG_SET};
 
 impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
-    pub fn access_function_prototype(&self) -> &'ll llvm::Value {
+    pub fn access_function_prototype(&self) -> &'ll llvm_sys::LLVMValue {
         let cx = &self.cx;
         let void_ptr = cx.ty_ptr();
         let uint32_t = cx.ty_int();
@@ -18,7 +18,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         cx.declare_ext_fn(name, fun_ty)
     }
 
-    pub fn access_function(&self) -> &'ll llvm::Value {
+    pub fn access_function(&self) -> &'ll llvm_sys::LLVMValue {
         let llfunc = self.access_function_prototype();
         let OsdiCompilationUnit { inst_data, model_data, cx, .. } = &self;
 

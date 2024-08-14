@@ -30,7 +30,7 @@ pub fn sim_param_str_stub<'ll>(cx: &CodegenCx<'_, 'll>) -> CallbackFun<'ll> {
     cx.const_callback(&[ty_str], empty_str)
 }
 
-pub fn lltype<'ll>(ty: &Type, cx: &CodegenCx<'_, 'll>) -> &'ll llvm::Type {
+pub fn lltype<'ll>(ty: &Type, cx: &CodegenCx<'_, 'll>) -> &'ll llvm_sys::LLVMType {
     match ty {
         Type::Real => cx.ty_double(),
         Type::Integer => cx.ty_int(),
@@ -94,7 +94,7 @@ struct Codegen<'a, 'b, 'll> {
 }
 
 impl<'ll> Codegen<'_, '_, 'll> {
-    unsafe fn read_depbreak(&mut self, offset: &'ll llvm::Value, ptr: &'ll llvm::Value, ty: Type) {
+    unsafe fn read_depbreak(&mut self, offset: &'ll llvm_sys::LLVMValue, ptr: &'ll llvm_sys::LLVMValue, ty: Type) {
         let vars =
             self.spec.dependency_breaking.iter().copied().filter(|var| var.ty(self.db) == ty);
         let llty = lltype(&ty, self.builder.cx);
@@ -109,7 +109,7 @@ impl<'ll> Codegen<'_, '_, 'll> {
         self.export_names(names, &global_name);
     }
 
-    unsafe fn read_str_params(&mut self, ptr: &'ll llvm::Value) {
+    unsafe fn read_str_params(&mut self, ptr: &'ll llvm_sys::LLVMValue) {
         let params = self.intern.live_params(&self.func.dfg).filter_map(|(id, kind, _)| {
             if let ParamKind::Param(param) = *kind {
                 (param.ty(self.db) == Type::String).then_some((id, param))
@@ -132,7 +132,7 @@ impl<'ll> Codegen<'_, '_, 'll> {
         self.export_names(names, &global_name);
     }
 
-    unsafe fn read_params(&mut self, offset: &'ll llvm::Value, ptr: &'ll llvm::Value, ty: Type) {
+    unsafe fn read_params(&mut self, offset: &'ll llvm_sys::LLVMValue, ptr: &'ll llvm_sys::LLVMValue, ty: Type) {
         let params = self.intern.live_params(&self.func.dfg).filter_map(|(id, kind, _)| {
             if let ParamKind::Param(param) = kind {
                 (param.ty(self.db) == ty).then_some((id, *param))
@@ -151,7 +151,7 @@ impl<'ll> Codegen<'_, '_, 'll> {
         self.export_names(names, &global_name);
     }
 
-    unsafe fn read_voltages(&mut self, offset: &'ll llvm::Value, ptr: &'ll llvm::Value) {
+    unsafe fn read_voltages(&mut self, offset: &'ll llvm_sys::LLVMValue, ptr: &'ll llvm_sys::LLVMValue) {
         let voltages = self.intern.live_params(&self.func.dfg).filter_map(|(id, kind, _)| {
             if let ParamKind::Voltage { hi, lo } = kind {
                 Some((id, (*hi, *lo)))
@@ -194,7 +194,7 @@ impl<'ll> Codegen<'_, '_, 'll> {
         self.export_names(names, &global_name);
     }
 
-    unsafe fn read_currents(&mut self, offset: &'ll llvm::Value, ptr: &'ll llvm::Value) {
+    unsafe fn read_currents(&mut self, offset: &'ll llvm_sys::LLVMValue, ptr: &'ll llvm_sys::LLVMValue) {
         let voltages = self.intern.live_params(&self.func.dfg).filter_map(|(id, kind, _)| {
             if let ParamKind::Current(kind) = kind {
                 Some((id, *kind))
@@ -254,10 +254,10 @@ impl<'ll> Codegen<'_, '_, 'll> {
     unsafe fn read_fat_ptr_at(
         &mut self,
         pos: usize,
-        offset: &'ll llvm::Value,
-        ptr: &'ll llvm::Value,
-        ptr_ty: &'ll llvm::Type,
-    ) -> &'ll llvm::Value {
+        offset: &'ll llvm_sys::LLVMValue,
+        ptr: &'ll llvm_sys::LLVMValue,
+        ptr_ty: &'ll llvm_sys::LLVMType,
+    ) -> &'ll llvm_sys::LLVMValue {
         let builder = &mut self.builder;
 
         // get correct ptrs from array
@@ -450,8 +450,8 @@ impl CodegenCtx<'_, '_> {
         intern: &HirInterner,
         ty: Type,
         builder: &mut Builder<'_, '_, 'll>,
-        val_ptr: &'ll llvm::Value,
-        param_given_ptr: &'ll llvm::Value,
+        val_ptr: &'ll llvm_sys::LLVMValue,
+        param_given_ptr: &'ll llvm_sys::LLVMValue,
         param_given_offset: usize,
     ) -> usize {
         let llty = lltype(&ty, builder.cx);
@@ -488,8 +488,8 @@ impl CodegenCtx<'_, '_> {
         intern: &HirInterner,
         ty: Type,
         builder: &Builder<'_, '_, 'll>,
-        val_ptr: &'ll llvm::Value,
-        bounds_ptrs: Option<(&'ll llvm::Value, &'ll llvm::Value)>,
+        val_ptr: &'ll llvm_sys::LLVMValue,
+        bounds_ptrs: Option<(&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMValue)>,
     ) {
         let llty = lltype(&ty, builder.cx);
         for (i, (param, _)) in
@@ -528,7 +528,7 @@ impl CodegenCtx<'_, '_> {
         &self,
         cx: &CodegenCx<'_, 'll>,
         set: bool,
-    ) -> (&'ll llvm::Value, &'ll llvm::Type) {
+    ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let name = cx.local_callback_name();
         let fun_ty = cx.ty_func(&[cx.ty_ptr(), cx.ty_c_bool()], cx.ty_void());
         let fun = cx.declare_int_fn(&name, fun_ty);
@@ -556,7 +556,7 @@ impl CodegenCtx<'_, '_> {
         &self,
         intern: &HirInterner,
         builder: &mut Builder<'_, '_, 'll>,
-        param_flags: &'ll llvm::Value,
+        param_flags: &'ll llvm_sys::LLVMValue,
         real_cnt: usize,
         int_cnt: usize,
     ) {
@@ -783,18 +783,18 @@ impl InternedModel<'_> {
     fn functions<'ll>(
         &self,
         cx: &CodegenCx<'_, 'll>,
-    ) -> (Vec<&'ll llvm::Value>, Vec<&'ll llvm::Value>) {
+    ) -> (Vec<&'ll llvm_sys::LLVMValue>, Vec<&'ll llvm_sys::LLVMValue>) {
         self.functions
             .iter()
             .map(|func| (cx.const_str(func.name), cx.const_str(func.prefix)))
             .unzip()
     }
 
-    fn opvars<'ll>(&self, cx: &CodegenCx<'_, 'll>) -> Vec<&'ll llvm::Value> {
+    fn opvars<'ll>(&self, cx: &CodegenCx<'_, 'll>) -> Vec<&'ll llvm_sys::LLVMValue> {
         self.opvars.iter().map(|name| cx.const_str(*name)).collect()
     }
 
-    fn nodes<'ll>(&self, cx: &CodegenCx<'_, 'll>) -> Vec<&'ll llvm::Value> {
+    fn nodes<'ll>(&self, cx: &CodegenCx<'_, 'll>) -> Vec<&'ll llvm_sys::LLVMValue> {
         self.nodes.iter().map(|name| cx.const_str(*name)).collect()
     }
 
@@ -833,8 +833,8 @@ impl InternedModel<'_> {
 }
 
 struct ParamInfo<'ll> {
-    names: Vec<&'ll llvm::Value>,
-    units: Vec<&'ll llvm::Value>,
-    descriptions: Vec<&'ll llvm::Value>,
-    groups: Vec<&'ll llvm::Value>,
+    names: Vec<&'ll llvm_sys::LLVMValue>,
+    units: Vec<&'ll llvm_sys::LLVMValue>,
+    descriptions: Vec<&'ll llvm_sys::LLVMValue>,
+    groups: Vec<&'ll llvm_sys::LLVMValue>,
 }

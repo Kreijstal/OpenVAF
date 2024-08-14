@@ -291,7 +291,7 @@ fn ty_len(ty: &Type) -> Option<u32> {
     }
 }
 
-fn lltype<'ll>(ty: &Type, cx: &CodegenCx<'_, 'll>) -> &'ll llvm::Type {
+fn lltype<'ll>(ty: &Type, cx: &CodegenCx<'_, 'll>) -> &'ll llvm_sys::LLVMType {
     let llty = match ty.base_type() {
         Type::Real => cx.ty_double(),
         Type::Integer => cx.ty_int(),

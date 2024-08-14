@@ -23,7 +23,7 @@ use crate::metadata::OsdiLimFunction;
 use crate::OsdiLimId;
 
 impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
-    pub fn eval_prototype(&self) -> &'ll llvm::Value {
+    pub fn eval_prototype(&self) -> &'ll llvm_sys::LLVMValue {
         let name = &format!("eval_{}", &self.module.sym);
         let cx = &self.cx;
 
@@ -33,7 +33,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         cx.declare_ext_fn(name, fun_ty)
     }
 
-    pub fn eval(&self) -> &'ll llvm::Value {
+    pub fn eval(&self) -> &'ll llvm_sys::LLVMValue {
         let llfunc = self.eval_prototype();
         let OsdiCompilationUnit { inst_data, model_data, cx, module, .. } = self;
 
@@ -342,7 +342,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
     unsafe fn build_store_results(
         builder: &Builder<'_, '_, 'll>,
-        llfunc: &'ll llvm::Value,
+        llfunc: &'ll llvm_sys::LLVMValue,
         flags: &MemLoc<'ll>,
         flag: u32,
         store_val: &dyn Fn(&Builder<'_, '_, 'll>),
@@ -366,7 +366,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         id: OsdiLimId,
         num_args: u32,
         flags_loc: &MemLoc<'ll>,
-        ret_flags_ptr: &'ll llvm::Value,
+        ret_flags_ptr: &'ll llvm_sys::LLVMValue,
     ) -> CallbackFun<'ll> {
         let OsdiCompilationUnit { cx, tys, .. } = self;
         let table = self.lim_dispatch_table();

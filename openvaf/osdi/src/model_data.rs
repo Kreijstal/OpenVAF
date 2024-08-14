@@ -11,9 +11,9 @@ use crate::{bitfield, lltype};
 const NUM_CONST_FIELDS: u32 = 1;
 
 pub struct OsdiModelData<'ll> {
-    pub param_given: &'ll llvm::Type,
-    pub params: IndexMap<Parameter, &'ll llvm::Type, RandomState>,
-    pub ty: &'ll llvm::Type,
+    pub param_given: &'ll llvm_sys::LLVMType,
+    pub params: IndexMap<Parameter, &'ll llvm_sys::LLVMType, RandomState>,
+    pub ty: &'ll llvm_sys::LLVMType,
 }
 
 impl<'ll> OsdiModelData<'ll> {
@@ -54,7 +54,7 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         cx: &CodegenCx<'_, 'll>,
         pos: u32,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
     ) -> MemLoc<'ll> {
         let ty = self.params.get_index(pos as usize).unwrap().1;
         let elem = NUM_CONST_FIELDS + pos;
@@ -67,7 +67,7 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         cx: &CodegenCx<'_, 'll>,
         param: Parameter,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
     ) -> Option<MemLoc<'ll>> {
         let pos = self.params.get_index_of(&param)? as u32;
         let res = self.nth_param_loc(cx, pos, ptr);
@@ -77,9 +77,9 @@ impl<'ll> OsdiModelData<'ll> {
     pub unsafe fn param_ptr(
         &self,
         param: Parameter,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
-    ) -> Option<(&'ll llvm::Value, &'ll llvm::Type)> {
+    ) -> Option<(&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType)> {
         let (pos, _, ty) = self.params.get_full(&param)?;
         let elem = NUM_CONST_FIELDS + pos as u32;
         let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, elem, UNNAMED);
@@ -89,9 +89,9 @@ impl<'ll> OsdiModelData<'ll> {
     pub unsafe fn nth_param_ptr(
         &self,
         pos: u32,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
-    ) -> (&'ll llvm::Value, &'ll llvm::Type) {
+    ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let ty = self.params.get_index(pos as usize).unwrap().1;
         let elem = NUM_CONST_FIELDS + pos;
         let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, elem, UNNAMED);
@@ -102,9 +102,9 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         inst_data: &OsdiInstanceData<'ll>,
         pos: u32,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
-    ) -> (&'ll llvm::Value, &'ll llvm::Type) {
+    ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let ty = inst_data.params.get_index(pos as usize).unwrap().1;
         let elem = NUM_CONST_FIELDS + self.params.len() as u32 + pos;
         let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, elem, UNNAMED);
@@ -114,9 +114,9 @@ impl<'ll> OsdiModelData<'ll> {
     // pub unsafe fn read_param(
     //     &self,
     //     param: ParamId,
-    //     ptr: &'ll llvm::Value,
+    //     ptr: &'ll llvm_sys::LLVMValue,
     //     llbuilder: &llvm::Builder<'ll>,
-    // ) -> Option<&'ll llvm::Value> {
+    // ) -> Option<&'ll llvm_sys::LLVMValue> {
     //     let (ptr, ty) = self.param_ptr(param, ptr, llbuilder)?;
     //     let val = LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED);
     //     Some(val)
@@ -126,7 +126,7 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         param: u32,
         ptr: &'ll Value,
-        val: &'ll llvm::Value,
+        val: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
     ) {
         let (ptr, _) = self.nth_param_ptr(param, ptr, llbuilder);
@@ -136,9 +136,9 @@ impl<'ll> OsdiModelData<'ll> {
     // pub unsafe fn read_nth_param(
     //     &self,
     //     param: u32,
-    //     ptr: &'ll llvm::Value,
+    //     ptr: &'ll llvm_sys::LLVMValue,
     //     llbuilder: &llvm::Builder<'ll>,
-    // ) -> &'ll llvm::Value {
+    // ) -> &'ll llvm_sys::LLVMValue {
     //     let (ptr, ty) = self.nth_param_ptr(param, ptr, llbuilder);
     //     LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED)
     // }
@@ -147,9 +147,9 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         inst_data: &OsdiInstanceData<'ll>,
         param: u32,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
-    ) -> &'ll llvm::Value {
+    ) -> &'ll llvm_sys::LLVMValue {
         let (ptr, ty) = self.nth_inst_param_ptr(inst_data, param, ptr, llbuilder);
         LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED)
     }
@@ -158,9 +158,9 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         cx: &CodegenCx<'_, 'll>,
         pos: u32,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
-    ) -> &'ll llvm::Value {
+    ) -> &'ll llvm_sys::LLVMValue {
         let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, 0, UNNAMED);
         bitfield::is_set(cx, pos, arr_ptr, self.param_given, llbuilder)
     }
@@ -169,9 +169,9 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         cx: &CodegenCx<'_, 'll>,
         pos: u32,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
-    ) -> &'ll llvm::Value {
+    ) -> &'ll llvm_sys::LLVMValue {
         let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, 0, UNNAMED);
         bitfield::is_set(cx, pos + self.params.len() as u32, arr_ptr, self.param_given, llbuilder)
     }
@@ -181,9 +181,9 @@ impl<'ll> OsdiModelData<'ll> {
         inst_data: &OsdiInstanceData<'ll>,
         cx: &CodegenCx<'_, 'll>,
         param: OsdiInstanceParam,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
-    ) -> &'ll llvm::Value {
+    ) -> &'ll llvm_sys::LLVMValue {
         let pos = inst_data.params.get_index_of(&param).unwrap();
         self.is_nth_inst_param_given(cx, pos as u32, ptr, llbuilder)
     }
@@ -191,9 +191,9 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         cx: &CodegenCx<'_, 'll>,
         param: Parameter,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
-    ) -> Option<&'ll llvm::Value> {
+    ) -> Option<&'ll llvm_sys::LLVMValue> {
         let pos = self.params.get_index_of(&param)?;
         let res = self.is_nth_param_given(cx, pos as u32, ptr, llbuilder);
         Some(res)
@@ -203,7 +203,7 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         cx: &CodegenCx<'_, 'll>,
         pos: u32,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
     ) {
         let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, 0, UNNAMED);
@@ -213,7 +213,7 @@ impl<'ll> OsdiModelData<'ll> {
         &self,
         cx: &CodegenCx<'_, 'll>,
         pos: u32,
-        ptr: &'ll llvm::Value,
+        ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm::Builder<'ll>,
     ) {
         let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, 0, UNNAMED);
@@ -224,7 +224,7 @@ impl<'ll> OsdiModelData<'ll> {
     //     &self,
     //     cx: &CodegenCx<'_, 'll>,
     //     param: ParamId,
-    //     ptr: &'ll llvm::Value,
+    //     ptr: &'ll llvm_sys::LLVMValue,
     //     llbuilder: &llvm::Builder<'ll>,
     // ) -> bool {
     //     if let Some(pos) = self.params.get_index_of(&param) {

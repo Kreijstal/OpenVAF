@@ -715,15 +715,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "llvm"
-version = "0.0.0"
-dependencies = [
- "ahash 0.8.6",
- "cc",
- "libc",
-]
-
-[[package]]
 name = "llvm-sys"
 version = "181.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -989,7 +980,7 @@ dependencies = [
  "libc",
  "libloading",
  "linker",
- "llvm",
+ "llvm-sys",
  "md5",
  "mini_harness",
  "mir_llvm",
@@ -1035,7 +1026,7 @@ dependencies = [
  "hir_lower",
  "indexmap 2.0.2",
  "lasso",
- "llvm",
+ "llvm-sys",
  "log",
  "mini_harness",
  "mir",
@@ -1524,7 +1515,7 @@ dependencies = [
  "lasso",
  "libloading",
  "linker",
- "llvm",
+ "llvm-sys",
  "md5",
  "mir",
  "mir_autodiff",

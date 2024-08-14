@@ -40,7 +40,7 @@ impl JacobianLoadType {
 }
 
 impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
-    pub fn load_noise(&self) -> &'ll llvm::Value {
+    pub fn load_noise(&self) -> &'ll llvm_sys::LLVMValue {
         let OsdiCompilationUnit { cx, module, .. } = self;
         let void_ptr = cx.ty_ptr();
         let f64_ptr_ty = cx.ty_ptr();
@@ -104,7 +104,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         llfunc
     }
 
-    pub fn load_residual(&self, reactive: bool) -> &'ll llvm::Value {
+    pub fn load_residual(&self, reactive: bool) -> &'ll llvm_sys::LLVMValue {
         let OsdiCompilationUnit { inst_data, cx, module, .. } = self;
         let ptr_ty = cx.ty_ptr();
         let fun_ty = cx.ty_func(&[ptr_ty, ptr_ty, ptr_ty], cx.ty_void());
@@ -135,7 +135,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         llfunc
     }
 
-    pub fn load_lim_rhs(&self, reactive: bool) -> &'ll llvm::Value {
+    pub fn load_lim_rhs(&self, reactive: bool) -> &'ll llvm_sys::LLVMValue {
         let OsdiCompilationUnit { inst_data, cx, module, .. } = self;
         let void_ptr = cx.ty_ptr();
         let f64_ptr_ty = cx.ty_ptr();
@@ -172,11 +172,11 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         &self,
         tran: bool,
         llbuilder: &llvm::Builder<'ll>,
-        inst: &'ll llvm::Value,
-        model: &'ll llvm::Value,
-        dst: &'ll llvm::Value,
-        prev_solve: &'ll llvm::Value,
-        alpha: &'ll llvm::Value,
+        inst: &'ll llvm_sys::LLVMValue,
+        model: &'ll llvm_sys::LLVMValue,
+        dst: &'ll llvm_sys::LLVMValue,
+        prev_solve: &'ll llvm_sys::LLVMValue,
+        alpha: &'ll llvm_sys::LLVMValue,
     ) {
         let dae_system = &self.module.dae_system;
         let mut node_derivatives = TiVec::from(vec![Vec::new(); dae_system.unknowns.len()]);
@@ -239,7 +239,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         }
     }
 
-    pub fn load_spice_rhs(&self, tran: bool) -> &'ll llvm::Value {
+    pub fn load_spice_rhs(&self, tran: bool) -> &'ll llvm_sys::LLVMValue {
         let OsdiCompilationUnit { cx, module, .. } = self;
         let f64_ty = cx.ty_double();
         let ptr_ty = cx.ty_ptr();
@@ -275,7 +275,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         llfunc
     }
 
-    pub fn load_jacobian(&self, kind: JacobianLoadType) -> &'ll llvm::Value {
+    pub fn load_jacobian(&self, kind: JacobianLoadType) -> &'ll llvm_sys::LLVMValue {
         let OsdiCompilationUnit { cx, module, .. } = *self;
         let args_ = [cx.ty_ptr(), cx.ty_ptr(), cx.ty_double()];
         let args = if kind.read_reactive() { &args_ } else { &args_[0..2] };

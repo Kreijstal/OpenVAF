@@ -312,7 +312,7 @@ struct TyInterpolater<'b, 'a> {
 impl ToTokens for TyInterpolater<'_, '_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         if self.ty.func_args.is_some() || self.ty.base == BaseTy::Void {
-            quote!(&'ll llvm::Value).to_tokens(tokens);
+            quote!(&'ll llvm_sys::LLVMValue).to_tokens(tokens);
             return;
         }
 
@@ -532,7 +532,7 @@ impl ToTokens for OsdiStructInterp<'_, '_> {
                 }
 
                 impl #lt #ident #lt{
-                    pub fn to_ll_val #func_lt (&self, ctx: &CodegenCx<'_,'ll>, tys: &'ll OsdiTys) -> &'ll llvm::Value{
+                    pub fn to_ll_val #func_lt (&self, ctx: &CodegenCx<'_,'ll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue{
                         #(#field_ll_arrays)*
                         let fields = [#(#field_ll_vals),*];
                         let ty = tys.#llvm_ty_ident;
@@ -714,7 +714,7 @@ fn gen_llvm_tys<'a>(tys: &IndexMap<&'a str, OsdiStruct<'a>, RandomState>) -> Str
 
         #[derive(Clone)]
         pub struct OsdiTys<'ll>{
-            #(pub #fields : &'ll llvm::Type),*
+            #(pub #fields : &'ll llvm_sys::LLVMType),*
         }
 
         impl<'ll> OsdiTys<'ll>{
@@ -734,7 +734,7 @@ fn gen_llvm_tys<'a>(tys: &IndexMap<&'a str, OsdiStruct<'a>, RandomState>) -> Str
         struct OsdiTyBuilder<'a, 'b, 'll>{
             ctx: &'a CodegenCx<'b, 'll>,
             target_data: &'a llvm::TargetData,
-            #(#fields2 : Option<&'ll llvm::Type>),*
+            #(#fields2 : Option<&'ll llvm_sys::LLVMType>),*
         }
 
         impl<'ll> OsdiTyBuilder<'_, '_, 'll>{

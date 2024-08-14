@@ -67,7 +67,7 @@ pub struct OsdiCompilationUnit<'a, 'b, 'll> {
     pub tys: &'a OsdiTys<'ll>,
     pub cx: &'a CodegenCx<'b, 'll>,
     pub module: &'a OsdiModule<'b>,
-    pub lim_dispatch_table: Option<&'ll llvm::Value>,
+    pub lim_dispatch_table: Option<&'ll llvm_sys::LLVMValue>,
 }
 
 impl<'a, 'b, 'll> OsdiCompilationUnit<'a, 'b, 'll> {
@@ -98,7 +98,7 @@ impl<'a, 'b, 'll> OsdiCompilationUnit<'a, 'b, 'll> {
         OsdiCompilationUnit { db, inst_data, model_data, tys, cx, module, lim_dispatch_table }
     }
 
-    pub fn lim_dispatch_table(&self) -> &'ll llvm::Value {
+    pub fn lim_dispatch_table(&self) -> &'ll llvm_sys::LLVMValue {
         self.lim_dispatch_table.unwrap()
     }
 }
@@ -151,9 +151,9 @@ impl<'a> OsdiModule<'a> {
 pub fn general_callbacks<'ll>(
     intern: &HirInterner,
     builder: &mut mir_llvm::Builder<'_, '_, 'll>,
-    ret_flags: &'ll llvm::Value,
-    handle: &'ll llvm::Value,
-    simparam: &'ll llvm::Value,
+    ret_flags: &'ll llvm_sys::LLVMValue,
+    handle: &'ll llvm_sys::LLVMValue,
+    simparam: &'ll llvm_sys::LLVMValue,
 ) -> TiVec<FuncRef, Option<CallbackFun<'ll>>> {
     let ptr_ty = builder.cx.ty_ptr();
     intern
@@ -240,7 +240,7 @@ fn print_callback<'ll>(
     cx: &CodegenCx<'_, 'll>,
     kind: hir_lower::fmt::DisplayKind,
     arg_tys: &[FmtArg],
-) -> (&'ll llvm::Value, &'ll llvm::Type) {
+) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
     let mut args = vec![cx.ty_ptr(), cx.ty_ptr()];
     args.extend(arg_tys.iter().map(|arg| lltype(&arg.ty, cx)));
     let fun_ty = cx.ty_func(&args, cx.ty_void());

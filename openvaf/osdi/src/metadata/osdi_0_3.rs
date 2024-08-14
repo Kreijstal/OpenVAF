@@ -76,10 +76,10 @@ pub const INIT_ERR_OUT_OF_BOUNDS: u32 = 1;
 pub struct OsdiLimFunction<'ll> {
     pub name: String,
     pub num_args: u32,
-    pub func_ptr: &'ll llvm::Value,
+    pub func_ptr: &'ll llvm_sys::LLVMValue,
 }
 impl<'ll> OsdiLimFunction<'ll> {
-    pub fn to_ll_val(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm::Value {
+    pub fn to_ll_val(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
         let fields = [
             ctx.const_str_uninterned(&self.name),
             ctx.const_unsigned_int(self.num_args),
@@ -160,7 +160,7 @@ pub struct OsdiNodePair {
     pub node_2: u32,
 }
 impl OsdiNodePair {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm::Value {
+    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
         let fields = [ctx.const_unsigned_int(self.node_1), ctx.const_unsigned_int(self.node_2)];
         let ty = tys.osdi_node_pair;
         ctx.const_struct(ty, &fields)
@@ -180,7 +180,7 @@ pub struct OsdiJacobianEntry {
     pub flags: u32,
 }
 impl OsdiJacobianEntry {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm::Value {
+    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
         let fields = [
             self.nodes.to_ll_val(ctx, tys),
             ctx.const_unsigned_int(self.react_ptr_off),
@@ -209,7 +209,7 @@ pub struct OsdiNode {
     pub is_flow: bool,
 }
 impl OsdiNode {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm::Value {
+    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
         let fields = [
             ctx.const_str_uninterned(&self.name),
             ctx.const_str_uninterned(&self.units),
@@ -250,7 +250,7 @@ pub struct OsdiParamOpvar {
     pub len: u32,
 }
 impl OsdiParamOpvar {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm::Value {
+    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
         let arr_0: Vec<_> = self.name.iter().map(|it| ctx.const_str_uninterned(it)).collect();
         let fields = [
             ctx.const_arr_ptr(ctx.ty_ptr(), &arr_0),
@@ -278,7 +278,7 @@ pub struct OsdiNoiseSource {
     pub nodes: OsdiNodePair,
 }
 impl OsdiNoiseSource {
-    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm::Value {
+    pub fn to_ll_val<'ll>(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
         let fields = [ctx.const_str_uninterned(&self.name), self.nodes.to_ll_val(ctx, tys)];
         let ty = tys.osdi_noise_source;
         ctx.const_struct(ty, &fields)
@@ -315,23 +315,23 @@ pub struct OsdiDescriptor<'ll> {
     pub bound_step_offset: u32,
     pub instance_size: u32,
     pub model_size: u32,
-    pub access: &'ll llvm::Value,
-    pub setup_model: &'ll llvm::Value,
-    pub setup_instance: &'ll llvm::Value,
-    pub eval: &'ll llvm::Value,
-    pub load_noise: &'ll llvm::Value,
-    pub load_residual_resist: &'ll llvm::Value,
-    pub load_residual_react: &'ll llvm::Value,
-    pub load_limit_rhs_resist: &'ll llvm::Value,
-    pub load_limit_rhs_react: &'ll llvm::Value,
-    pub load_spice_rhs_dc: &'ll llvm::Value,
-    pub load_spice_rhs_tran: &'ll llvm::Value,
-    pub load_jacobian_resist: &'ll llvm::Value,
-    pub load_jacobian_react: &'ll llvm::Value,
-    pub load_jacobian_tran: &'ll llvm::Value,
+    pub access: &'ll llvm_sys::LLVMValue,
+    pub setup_model: &'ll llvm_sys::LLVMValue,
+    pub setup_instance: &'ll llvm_sys::LLVMValue,
+    pub eval: &'ll llvm_sys::LLVMValue,
+    pub load_noise: &'ll llvm_sys::LLVMValue,
+    pub load_residual_resist: &'ll llvm_sys::LLVMValue,
+    pub load_residual_react: &'ll llvm_sys::LLVMValue,
+    pub load_limit_rhs_resist: &'ll llvm_sys::LLVMValue,
+    pub load_limit_rhs_react: &'ll llvm_sys::LLVMValue,
+    pub load_spice_rhs_dc: &'ll llvm_sys::LLVMValue,
+    pub load_spice_rhs_tran: &'ll llvm_sys::LLVMValue,
+    pub load_jacobian_resist: &'ll llvm_sys::LLVMValue,
+    pub load_jacobian_react: &'ll llvm_sys::LLVMValue,
+    pub load_jacobian_tran: &'ll llvm_sys::LLVMValue,
 }
 impl<'ll> OsdiDescriptor<'ll> {
-    pub fn to_ll_val(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm::Value {
+    pub fn to_ll_val(&self, ctx: &CodegenCx<'_, 'll>, tys: &'ll OsdiTys) -> &'ll llvm_sys::LLVMValue {
         let arr_3: Vec<_> = self.nodes.iter().map(|it| it.to_ll_val(ctx, tys)).collect();
         let arr_5: Vec<_> = self.jacobian_entries.iter().map(|it| it.to_ll_val(ctx, tys)).collect();
         let arr_7: Vec<_> = self.collapsible.iter().map(|it| it.to_ll_val(ctx, tys)).collect();
@@ -426,18 +426,18 @@ impl OsdiTyBuilder<'_, '_, '_> {
 }
 #[derive(Clone)]
 pub struct OsdiTys<'ll> {
-    pub osdi_lim_function: &'ll llvm::Type,
-    pub osdi_sim_paras: &'ll llvm::Type,
-    pub osdi_sim_info: &'ll llvm::Type,
-    pub osdi_init_error_payload: &'ll llvm::Type,
-    pub osdi_init_error: &'ll llvm::Type,
-    pub osdi_init_info: &'ll llvm::Type,
-    pub osdi_node_pair: &'ll llvm::Type,
-    pub osdi_jacobian_entry: &'ll llvm::Type,
-    pub osdi_node: &'ll llvm::Type,
-    pub osdi_param_opvar: &'ll llvm::Type,
-    pub osdi_noise_source: &'ll llvm::Type,
-    pub osdi_descriptor: &'ll llvm::Type,
+    pub osdi_lim_function: &'ll llvm_sys::LLVMType,
+    pub osdi_sim_paras: &'ll llvm_sys::LLVMType,
+    pub osdi_sim_info: &'ll llvm_sys::LLVMType,
+    pub osdi_init_error_payload: &'ll llvm_sys::LLVMType,
+    pub osdi_init_error: &'ll llvm_sys::LLVMType,
+    pub osdi_init_info: &'ll llvm_sys::LLVMType,
+    pub osdi_node_pair: &'ll llvm_sys::LLVMType,
+    pub osdi_jacobian_entry: &'ll llvm_sys::LLVMType,
+    pub osdi_node: &'ll llvm_sys::LLVMType,
+    pub osdi_param_opvar: &'ll llvm_sys::LLVMType,
+    pub osdi_noise_source: &'ll llvm_sys::LLVMType,
+    pub osdi_descriptor: &'ll llvm_sys::LLVMType,
 }
 impl<'ll> OsdiTys<'ll> {
     pub fn new(ctx: &CodegenCx<'_, 'll>, target_data: &llvm::TargetData) -> Self {
@@ -475,18 +475,18 @@ impl<'ll> OsdiTys<'ll> {
 struct OsdiTyBuilder<'a, 'b, 'll> {
     ctx: &'a CodegenCx<'b, 'll>,
     target_data: &'a llvm::TargetData,
-    osdi_lim_function: Option<&'ll llvm::Type>,
-    osdi_sim_paras: Option<&'ll llvm::Type>,
-    osdi_sim_info: Option<&'ll llvm::Type>,
-    osdi_init_error_payload: Option<&'ll llvm::Type>,
-    osdi_init_error: Option<&'ll llvm::Type>,
-    osdi_init_info: Option<&'ll llvm::Type>,
-    osdi_node_pair: Option<&'ll llvm::Type>,
-    osdi_jacobian_entry: Option<&'ll llvm::Type>,
-    osdi_node: Option<&'ll llvm::Type>,
-    osdi_param_opvar: Option<&'ll llvm::Type>,
-    osdi_noise_source: Option<&'ll llvm::Type>,
-    osdi_descriptor: Option<&'ll llvm::Type>,
+    osdi_lim_function: Option<&'ll llvm_sys::LLVMType>,
+    osdi_sim_paras: Option<&'ll llvm_sys::LLVMType>,
+    osdi_sim_info: Option<&'ll llvm_sys::LLVMType>,
+    osdi_init_error_payload: Option<&'ll llvm_sys::LLVMType>,
+    osdi_init_error: Option<&'ll llvm_sys::LLVMType>,
+    osdi_init_info: Option<&'ll llvm_sys::LLVMType>,
+    osdi_node_pair: Option<&'ll llvm_sys::LLVMType>,
+    osdi_jacobian_entry: Option<&'ll llvm_sys::LLVMType>,
+    osdi_node: Option<&'ll llvm_sys::LLVMType>,
+    osdi_param_opvar: Option<&'ll llvm_sys::LLVMType>,
+    osdi_noise_source: Option<&'ll llvm_sys::LLVMType>,
+    osdi_descriptor: Option<&'ll llvm_sys::LLVMType>,
 }
 impl<'ll> OsdiTyBuilder<'_, '_, 'll> {
     fn finish(self) -> OsdiTys<'ll> {
