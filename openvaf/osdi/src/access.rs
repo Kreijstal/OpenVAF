@@ -5,6 +5,7 @@ use llvm_sys::core::{
 };
 use llvm_sys::LLVMIntPredicate::LLVMIntNE;
 use mir_llvm::UNNAMED;
+use core::ptr::NonNull;
 
 use crate::compilation_unit::OsdiCompilationUnit;
 use crate::metadata::osdi_0_3::{ACCESS_FLAG_INSTANCE, ACCESS_FLAG_SET};
@@ -24,24 +25,24 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let OsdiCompilationUnit { inst_data, model_data, cx, .. } = &self;
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let err_exit = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let model_bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let inst_bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let opvar_bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
+            let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let err_exit = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let model_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let inst_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let opvar_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let llbuilder = LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
 
             LLVMPositionBuilderAtEnd(llbuilder, entry);
 
             // get params
-            let inst = LLVMGetParam(llfunc, 0);
-            let model = LLVMGetParam(llfunc, 1);
-            let param_id = LLVMGetParam(llfunc, 2);
-            let flags = LLVMGetParam(llfunc, 3);
+            let inst = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
+            let model = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1);
+            let param_id = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2);
+            let flags = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 3);
 
-            let access_flag_instance = cx.const_unsigned_int(ACCESS_FLAG_INSTANCE);
-            let access_flag_set = cx.const_unsigned_int(ACCESS_FLAG_SET);
-            let zero = cx.const_unsigned_int(0);
+            let access_flag_instance = NonNull::from(cx.const_unsigned_int(ACCESS_FLAG_INSTANCE)).as_ptr();
+            let access_flag_set = NonNull::from(cx.const_unsigned_int(ACCESS_FLAG_SET)).as_ptr();
+            let zero = NonNull::from(cx.const_unsigned_int(0)).as_ptr();
 
             // check various flags
             let flags_and_instance = LLVMBuildAnd(llbuilder, flags, access_flag_instance, UNNAMED);
@@ -59,24 +60,24 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                 LLVMBuildSwitch(llbuilder, param_id, opvar_bb, inst_data.params.len() as u32);
 
             for param_idx in 0..inst_data.params.len() {
-                let bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+                let bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
                 LLVMPositionBuilderAtEnd(llbuilder, bb);
-                let case = cx.const_unsigned_int(param_idx as u32);
+                let case = NonNull::from(cx.const_unsigned_int(param_idx as u32)).as_ptr();
                 LLVMAddCase(switch_inst, case, bb);
 
-                let (ptr, _) = inst_data.nth_param_ptr(param_idx as u32, inst, llbuilder);
+                let (ptr, _) = inst_data.nth_param_ptr(param_idx as u32,&*inst, &*llbuilder);
 
                 // set the write flag if given
-                let write = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-                let ret = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+                let write = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+                let ret = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
                 LLVMBuildCondBr(llbuilder, write_flag_set, write, ret);
                 LLVMPositionBuilderAtEnd(llbuilder, write);
-                inst_data.set_nth_param_given(cx, param_idx as u32, inst, llbuilder);
+                inst_data.set_nth_param_given(cx, param_idx as u32, &*inst, &*llbuilder);
                 LLVMBuildBr(llbuilder, ret);
 
                 // return the pointer
                 LLVMPositionBuilderAtEnd(llbuilder, ret);
-                LLVMBuildRet(llbuilder, ptr);
+                LLVMBuildRet(llbuilder,NonNull::from(ptr).as_ptr());
             }
 
             LLVMPositionBuilderAtEnd(llbuilder, model_bb);
@@ -85,47 +86,47 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
             // inst param model default values
             for param_idx in 0..inst_data.params.len() {
-                let bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+                let bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
                 LLVMPositionBuilderAtEnd(llbuilder, bb);
                 let case = cx.const_unsigned_int(param_idx as u32);
-                LLVMAddCase(switch_model, case, bb);
+                LLVMAddCase(switch_model, NonNull::from(case).as_ptr(), bb);
 
                 let (ptr, _) =
-                    model_data.nth_inst_param_ptr(inst_data, param_idx as u32, model, llbuilder);
+                    model_data.nth_inst_param_ptr(inst_data, param_idx as u32, &*model, &*llbuilder);
 
                 // set the write flag if given
-                let write = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-                let ret = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+                let write = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+                let ret = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
                 LLVMBuildCondBr(llbuilder, write_flag_set, write, ret);
                 LLVMPositionBuilderAtEnd(llbuilder, write);
-                model_data.set_nth_inst_param_given(cx, param_idx as u32, model, llbuilder);
+                model_data.set_nth_inst_param_given(cx, param_idx as u32,&*model, &*llbuilder);
                 LLVMBuildBr(llbuilder, ret);
 
                 // return the pointer
                 LLVMPositionBuilderAtEnd(llbuilder, ret);
-                LLVMBuildRet(llbuilder, ptr);
+                LLVMBuildRet(llbuilder, NonNull::from(ptr).as_ptr());
             }
 
             // model params
             for param_idx in 0..model_data.params.len() {
-                let bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+                let bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
                 LLVMPositionBuilderAtEnd(llbuilder, bb);
                 let case = cx.const_unsigned_int((inst_data.params.len() + param_idx) as u32);
-                LLVMAddCase(switch_model, case, bb);
+                LLVMAddCase(switch_model, NonNull::from(case).as_ptr(), bb);
 
-                let (ptr, _) = model_data.nth_param_ptr(param_idx as u32, model, llbuilder);
+                let (ptr, _) = model_data.nth_param_ptr(param_idx as u32, &*model, &*llbuilder);
 
                 // set the write flag if given
-                let write = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-                let ret = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+                let write = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+                let ret = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
                 LLVMBuildCondBr(llbuilder, write_flag_set, write, ret);
                 LLVMPositionBuilderAtEnd(llbuilder, write);
-                model_data.set_nth_param_given(cx, param_idx as u32, model, llbuilder);
+                model_data.set_nth_param_given(cx, param_idx as u32, &*model, &*llbuilder);
                 LLVMBuildBr(llbuilder, ret);
 
                 // return the pointer
                 LLVMPositionBuilderAtEnd(llbuilder, ret);
-                LLVMBuildRet(llbuilder, ptr);
+                LLVMBuildRet(llbuilder, NonNull::from(ptr).as_ptr());
             }
 
             let null_ptr = cx.const_null_ptr();
@@ -137,14 +138,14 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
             for opvar_idx in 0..inst_data.opvars.len() {
                 let OsdiCompilationUnit { inst_data, model_data, cx, .. } = &self;
-                let bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+                let bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
                 LLVMPositionBuilderAtEnd(llbuilder, bb);
                 let case = cx.const_unsigned_int(
                     (model_data.params.len() + inst_data.params.len() + opvar_idx) as u32,
                 );
-                LLVMAddCase(switch_opvar, case, bb);
-                let (ptr, _) = self.nth_opvar_ptr(opvar_idx as u32, inst, model, llbuilder);
-                LLVMBuildRet(llbuilder, ptr);
+                LLVMAddCase(switch_opvar,NonNull::from(case).as_ptr(), bb);
+                let (ptr, _) = self.nth_opvar_ptr(opvar_idx as u32,&* inst, &*model, &*llbuilder);
+                LLVMBuildRet(llbuilder, NonNull::from(ptr).as_ptr());
             }
 
             //return NULL on unknown id

@@ -2,13 +2,16 @@ use ahash::RandomState;
 use hir::{CompilationDB, ParamSysFun, Parameter, Variable};
 use hir_lower::{HirInterner, LimitState, ParamKind, PlaceKind};
 use indexmap::IndexMap;
-use llvm::{
-    IntPredicate, LLVMBuildFAdd, LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildIntCast2,
-    LLVMBuildLoad2, LLVMBuildStore, LLVMBuildStructGEP2, LLVMConstInt, LLVMOffsetOfElement,
-    LLVMSetFastMath, TargetData, UNNAMED,
+use core::ffi::c_uint;
+use llvm_sys::core::{
+    LLVMBuildFAdd, LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildIntCast2,
+    LLVMBuildLoad2, LLVMBuildStore, LLVMBuildStructGEP2, LLVMConstInt, 
+//    LLVMSetFastMath
 };
+use llvm_sys::LLVMIntPredicate;
+use llvm_sys::target::{LLVMTargetDataRef,LLVMOffsetOfElement};
 use mir::{strip_optbarrier, Const, Function, Param, ValueDef, F_ZERO};
-use mir_llvm::{CodegenCx, MemLoc};
+use mir_llvm::{CodegenCx, MemLoc,UNNAMED};
 use sim_back::dae::{self, MatrixEntryId, SimUnknown};
 use sim_back::init::CacheSlot;
 use stdx::packed_option::PackedOption;
@@ -435,7 +438,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         &self,
         node: SimUnknown,
         reactive: bool,
-        target_data: &TargetData,
+        target_data: &LLVMTargetDataRef,
     ) -> Option<u32> {
         let residual = &self.residual[node];
         let slot = if reactive { &residual.react } else { &residual.resist };
@@ -452,7 +455,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         &self,
         node: SimUnknown,
         reactive: bool,
-        target_data: &TargetData,
+        target_data: &LLVMTargetDataRef,
     ) -> Option<u32> {
         let residual = &self.residual[node];
         let residual = if reactive { &residual.react_lim_rhs } else { &residual.resist_lim_rhs };
@@ -706,7 +709,10 @@ impl<'ll> OsdiInstanceData<'ll> {
         } else {
             LLVMBuildFAdd(llbuilder, old, contrib, UNNAMED)
         };
-        LLVMSetFastMath(val);
+
+        let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+        llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
+        //LLVMSetFastMath(val);
         LLVMBuildStore(llbuilder, val, dst);
     }
 
@@ -747,7 +753,10 @@ impl<'ll> OsdiInstanceData<'ll> {
         let dst = LLVMBuildLoad2(llbuilder, cx.ty_ptr(), ptr, UNNAMED);
         let old = LLVMBuildLoad2(llbuilder, cx.ty_double(), dst, UNNAMED);
         let val = LLVMBuildFAdd(llbuilder, old, val, UNNAMED);
-        LLVMSetFastMath(val);
+        let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+        llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
+
+        //LLVMSetFastMath(val);
         LLVMBuildStore(llbuilder, val, dst);
     }
 
@@ -780,7 +789,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         if module.init.cache_slots[slot] == hir::Type::Bool {
             val = LLVMBuildICmp(
                 llbuilder,
-                IntPredicate::LLVMIntNE,
+                LLVMIntPredicate::LLVMIntNE,
                 val,
                 LLVMConstInt(ty, 0, llvm::False),
                 UNNAMED,

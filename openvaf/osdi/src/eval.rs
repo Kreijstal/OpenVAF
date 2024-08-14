@@ -1,13 +1,13 @@
 use hir_lower::{CallBackKind, CurrentKind, LimitState, ParamKind};
-use llvm::{
+use llvm_sys::core::{
     LLVMAppendBasicBlockInContext, LLVMBuildAlloca, LLVMBuildAnd, LLVMBuildBr, LLVMBuildCall2,
     LLVMBuildCondBr, LLVMBuildICmp, LLVMBuildInBoundsGEP2, LLVMBuildIntCast2, LLVMBuildLoad2,
     LLVMBuildOr, LLVMBuildRet, LLVMBuildStore, LLVMCreateBuilderInContext, LLVMDisposeBuilder,
-    LLVMGetParam, LLVMPositionBuilderAtEnd, UNNAMED,
+    LLVMGetParam, LLVMPositionBuilderAtEnd
 };
 use llvm_sys::LLVMIntPredicate::{LLVMIntNE, LLVMIntULT};
 use log::info;
-use mir_llvm::{Builder, BuilderVal, CallbackFun, MemLoc};
+use mir_llvm::{Builder, BuilderVal, CallbackFun, MemLoc,UNNAMED};
 use sim_back::SimUnknownKind;
 use typed_index_collections::TiVec;
 

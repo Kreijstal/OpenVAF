@@ -4,12 +4,13 @@ use hir_lower::{CallBackKind, HirInterner};
 use lasso::Rodeo;
 use llvm_sys::LLVMLinkage;
 use llvm_sys::core::{
-    IntPredicate, LLVMAddIncoming, LLVMAppendBasicBlockInContext, LLVMBuildAdd,
+    LLVMAddIncoming, LLVMAppendBasicBlockInContext, LLVMBuildAdd,
     LLVMBuildArrayMalloc, LLVMBuildBr, LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildFMul,
     LLVMBuildFree, LLVMBuildICmp, LLVMBuildInBoundsGEP2, LLVMBuildLoad2, LLVMBuildPhi,
     LLVMGetParam, LLVMIsDeclaration, LLVMPositionBuilderAtEnd, LLVMSetLinkage,
-    LLVMSetUnnamedAddress, UnnamedAddr
+    LLVMSetUnnamedAddress
 };
+use llvm_sys::{LLVMUnnamedAddr,LLVMIntPredicate};
 use mir::{FuncRef, Function};
 use mir_llvm::{CallbackFun, CodegenCx, LLVMBackend, ModuleLlvm,UNNAMED};
 use sim_back::dae::DaeSystem;
@@ -43,8 +44,8 @@ pub fn new_codegen<'a, 'll>(
                 continue;
             }
 
-            LLVMSetLinkage(fun, Linkage::Internal);
-            LLVMSetUnnamedAddress(fun, UnnamedAddr::Global);
+            LLVMSetLinkage(fun, LLVMLinkage::LLVMInternalLinkage);
+            LLVMSetUnnamedAddress(fun, LLVMUnnamedAddr::Global);
         }
     }
 
@@ -53,8 +54,8 @@ pub fn new_codegen<'a, 'll>(
         cx.get_declared_value("FMT_CHARS").expect("constant FMT_CHARS missing from stdlib");
 
     unsafe {
-        LLVMSetLinkage(exp_table, Linkage::Internal);
-        LLVMSetLinkage(char_table, Linkage::Internal);
+        LLVMSetLinkage(exp_table, LLVMLinkage::LLVMInternalLinkage);
+        LLVMSetLinkage(char_table, LLVMLinkage::LLVMInternalLinkage);
     }
 
     cx
@@ -322,7 +323,7 @@ fn print_callback<'ll>(
         let (fun_ty, fun) = cx.intrinsic("snprintf").unwrap();
         let len = LLVMBuildCall2(llbuilder, fun_ty, fun, args.as_ptr(), args.len() as u32, UNNAMED);
         let is_err =
-            LLVMBuildICmp(llbuilder, IntPredicate::LLVMIntSLT, len, cx.const_int(0), UNNAMED);
+            LLVMBuildICmp(llbuilder, LLVMIntPredicate::LLVMIntSLT, len, cx.const_int(0), UNNAMED);
         LLVMBuildCondBr(llbuilder, is_err, err_bb, alloc_bb);
 
         LLVMPositionBuilderAtEnd(llbuilder, alloc_bb);
@@ -339,7 +340,7 @@ fn print_callback<'ll>(
         args[1] = data_len;
         let len = LLVMBuildCall2(llbuilder, fun_ty, fun, args.as_ptr(), args.len() as u32, UNNAMED);
         let is_err =
-            LLVMBuildICmp(llbuilder, IntPredicate::LLVMIntSLT, len, cx.const_int(0), UNNAMED);
+            LLVMBuildICmp(llbuilder, LLVMIntPredicate::LLVMIntSLT, len, cx.const_int(0), UNNAMED);
         for alloc in free.iter() {
             LLVMBuildFree(llbuilder, alloc);
         }

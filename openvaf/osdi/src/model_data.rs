@@ -1,8 +1,9 @@
 use ahash::RandomState;
 use hir::{CompilationDB, Parameter};
 use indexmap::IndexMap;
-use llvm::{LLVMBuildLoad2, LLVMBuildStore, LLVMBuildStructGEP2, Value, UNNAMED};
-use mir_llvm::{CodegenCx, MemLoc};
+use llvm_sys::core::{LLVMBuildLoad2, LLVMBuildStore, LLVMBuildStructGEP2};
+use llvm_sys::LLVMValue as Value;
+use mir_llvm::{CodegenCx, MemLoc,UNNAMED};
 
 use crate::compilation_unit::OsdiModule;
 use crate::inst_data::{OsdiInstanceData, OsdiInstanceParam};

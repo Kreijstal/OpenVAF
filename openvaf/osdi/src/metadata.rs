@@ -3,7 +3,7 @@ use std::iter::once;
 use hir::{CompilationDB, ParamSysFun, Type};
 use hir_lower::CurrentKind;
 use lasso::{Rodeo, Spur};
-use llvm::{LLVMABISizeOfType, LLVMOffsetOfElement, TargetData};
+use llvm_sys::target::{LLVMABISizeOfType, LLVMOffsetOfElement, LLVMTargetDataRef};
 use mir::{ValueDef, F_ZERO};
 use mir_llvm::CodegenCx;
 use sim_back::dae::MatrixEntry;
@@ -139,7 +139,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         inst_params.chain(model_params).chain(opvars).collect()
     }
 
-    pub fn nodes(&self, target_data: &TargetData, db: &CompilationDB) -> Vec<OsdiNode> {
+    pub fn nodes(&self, target_data: &LLVMTargetDataRef, db: &CompilationDB) -> Vec<OsdiNode> {
         let OsdiCompilationUnit { inst_data, module, .. } = self;
         module
             .dae_system
@@ -185,7 +185,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         }
     }
 
-    pub fn jacobian_entries(&self, target_data: &TargetData) -> Vec<OsdiJacobianEntry> {
+    pub fn jacobian_entries(&self, target_data: &LLVMTargetDataRef) -> Vec<OsdiJacobianEntry> {
         let OsdiCompilationUnit { inst_data, module, .. } = self;
         let mut jacobian_ptr_react_offset =
             unsafe { LLVMOffsetOfElement(target_data, inst_data.ty, JACOBIAN_PTR_REACT) } as u32;
@@ -237,7 +237,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
     pub fn descriptor(
         &self,
-        target_data: &llvm::TargetData,
+        target_data: &llvm::LLVMTargetDataRef,
         db: &CompilationDB,
     ) -> OsdiDescriptor<'ll> {
         let collapsible = self.collapsible();
