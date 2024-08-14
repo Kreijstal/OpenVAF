@@ -321,14 +321,14 @@ fn print_callback<'ll>(
         args.extend((1..(2 + arg_tys.len())).map(|arg| LLVMGetParam(fun, arg as u32)));
         let (fun_ty, fun) = cx.intrinsic("snprintf").unwrap();
         let len = LLVMBuildCall2(llbuilder, fun_ty, fun, args.as_ptr(), args.len() as u32, UNNAMED);
-        let is_err = LLVMBuildICmp(llbuilder, IntPredicate::IntSLT, len, cx.const_int(0), UNNAMED);
+        let is_err = LLVMBuildICmp(llbuilder, IntPredicate::LLVMIntSLT, len, cx.const_int(0), UNNAMED);
         LLVMBuildCondBr(llbuilder, is_err, err_bb, alloc_bb);
 
         LLVMPositionBuilderAtEnd(llbuilder, alloc_bb);
         let data_len = LLVMBuildAdd(llbuilder, len, cx.const_int(1), UNNAMED);
         let ptr = LLVMBuildArrayMalloc(llbuilder, cx.ty_char(), data_len, UNNAMED);
         let null_ptr = cx.const_null_ptr();
-        let is_err = LLVMBuildICmp(llbuilder, llvm::IntPredicate::IntEQ, null_ptr, ptr, UNNAMED);
+        let is_err = LLVMBuildICmp(llbuilder, llvm_sys::LLVMIntPredicate::LLVMIntEQ, null_ptr, ptr, UNNAMED);
         LLVMBuildCondBr(llbuilder, is_err, err_bb, write_bb);
 
         LLVMPositionBuilderAtEnd(llbuilder, write_bb);
@@ -336,7 +336,7 @@ fn print_callback<'ll>(
         args[0] = ptr;
         args[1] = data_len;
         let len = LLVMBuildCall2(llbuilder, fun_ty, fun, args.as_ptr(), args.len() as u32, UNNAMED);
-        let is_err = LLVMBuildICmp(llbuilder, IntPredicate::IntSLT, len, cx.const_int(0), UNNAMED);
+        let is_err = LLVMBuildICmp(llbuilder, IntPredicate::LLVMIntSLT, len, cx.const_int(0), UNNAMED);
         for alloc in free.iter() {
             LLVMBuildFree(llbuilder, alloc);
         }

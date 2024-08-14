@@ -1,5 +1,5 @@
 use hir_lower::{CallBackKind, CurrentKind, LimitState, ParamKind};
-use llvm::IntPredicate::{IntNE, IntULT};
+use llvm_sys::LLVMIntPredicate::{LLVMIntNE, LLVMIntULT};
 use llvm::{
     LLVMAppendBasicBlockInContext, LLVMBuildAlloca, LLVMBuildAnd, LLVMBuildBr, LLVMBuildCall2,
     LLVMBuildCondBr, LLVMBuildICmp, LLVMBuildInBoundsGEP2, LLVMBuildIntCast2, LLVMBuildLoad2,
@@ -173,7 +173,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                                 .unknowns
                                 .unwrap_index(&SimUnknownKind::KirchoffLaw(port));
                             let id = cx.const_unsigned_int(id.into());
-                            builder.int_cmp(id, connected_ports, IntULT)
+                            builder.int_cmp(id, connected_ports, LLVMIntULT)
                         }
                         ParamKind::ParamSysFun(param) => inst_data
                             .read_param(
@@ -422,7 +422,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
             val_changed = LLVMBuildLoad2(llbuilder, c_bool, val_changed, UNNAMED);
             val_changed =
-                LLVMBuildICmp(llbuilder, IntNE, val_changed, cx.const_c_bool(false), UNNAMED);
+                LLVMBuildICmp(llbuilder, LLVMIntNE, val_changed, cx.const_c_bool(false), UNNAMED);
             LLVMBuildCondBr(llbuilder, val_changed, val_changed_bb, exit);
 
             LLVMPositionBuilderAtEnd(llbuilder, val_changed_bb);

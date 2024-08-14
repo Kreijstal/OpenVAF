@@ -1,4 +1,4 @@
-use llvm::IntPredicate::IntNE;
+use llvm_sys::LLVMIntPredicate::LLVMIntNE;
 use llvm::{
     LLVMAddCase, LLVMAppendBasicBlockInContext, LLVMBuildAnd, LLVMBuildBr, LLVMBuildCondBr,
     LLVMBuildICmp, LLVMBuildRet, LLVMBuildSwitch, LLVMCreateBuilderInContext, LLVMDisposeBuilder,
@@ -45,10 +45,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             // check various flags
             let flags_and_instance = LLVMBuildAnd(llbuilder, flags, access_flag_instance, UNNAMED);
             let instance_flag_set =
-                LLVMBuildICmp(llbuilder, IntNE, flags_and_instance, zero, UNNAMED);
+                LLVMBuildICmp(llbuilder, LLVMIntNE, flags_and_instance, zero, UNNAMED);
 
             let flags_and_set = LLVMBuildAnd(llbuilder, flags, access_flag_set, UNNAMED);
-            let write_flag_set = LLVMBuildICmp(llbuilder, IntNE, flags_and_set, zero, UNNAMED);
+            let write_flag_set = LLVMBuildICmp(llbuilder, LLVMIntNE, flags_and_set, zero, UNNAMED);
 
             LLVMBuildCondBr(llbuilder, instance_flag_set, inst_bb, model_bb);
 

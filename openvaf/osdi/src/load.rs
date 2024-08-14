@@ -171,7 +171,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
     pub fn load_spice_rhs_(
         &self,
         tran: bool,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         inst: &'ll llvm_sys::LLVMValue,
         model: &'ll llvm_sys::LLVMValue,
         dst: &'ll llvm_sys::LLVMValue,

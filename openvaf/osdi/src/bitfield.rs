@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use llvm::IntPredicate::{IntEQ, IntNE};
+use llvm_sys::LLVMIntPredicate::{LLVMIntEQ, LLVMIntNE};
 use llvm::{
     LLVMBuildAnd, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildLoad2, LLVMBuildOr, LLVMBuildStore,
     UNNAMED,
@@ -31,7 +31,7 @@ pub unsafe fn word_ptr_and_mask<'ll>(
     pos: u32,
     arr_ptr: &'ll llvm_sys::LLVMValue,
     arr_ty: &'ll llvm_sys::LLVMType,
-    llbuilder: &llvm::Builder<'ll>,
+    llbuilder: &llvm_sys::LLVMBuilder,
 ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMValue) {
     let (idx, mask) = word_index_and_mask(pos);
     let zero = cx.const_int(0);
@@ -46,13 +46,13 @@ pub unsafe fn is_set<'ll>(
     pos: u32,
     arr_ptr: &'ll llvm_sys::LLVMValue,
     arr_ty: &'ll llvm_sys::LLVMType,
-    llbuilder: &llvm::Builder<'ll>,
+    llbuilder: &llvm_sys::LLVMBuilder,
 ) -> &'ll llvm_sys::LLVMValue {
     let (ptr, mask) = word_ptr_and_mask(cx, pos, arr_ptr, arr_ty, llbuilder);
     let word = LLVMBuildLoad2(llbuilder, cx.ty_int(), ptr, UNNAMED);
     let is_set = LLVMBuildAnd(llbuilder, word, mask, UNNAMED);
     let zero = cx.const_int(0);
-    LLVMBuildICmp(llbuilder, IntNE, is_set, zero, UNNAMED)
+    LLVMBuildICmp(llbuilder, LLVMIntNE, is_set, zero, UNNAMED)
 }
 
 pub unsafe fn set_bit<'ll>(
@@ -60,7 +60,7 @@ pub unsafe fn set_bit<'ll>(
     pos: u32,
     arr_ptr: &'ll llvm_sys::LLVMValue,
     arr_ty: &'ll llvm_sys::LLVMType,
-    llbuilder: &llvm::Builder<'ll>,
+    llbuilder: &llvm_sys::LLVMBuilder,
 ) {
     let (ptr, mask) = word_ptr_and_mask(cx, pos, arr_ptr, arr_ty, llbuilder);
     let mut word = LLVMBuildLoad2(llbuilder, cx.ty_int(), ptr, UNNAMED);
@@ -72,7 +72,7 @@ pub unsafe fn is_flag_set_mem<'ll>(
     cx: &CodegenCx<'_, 'll>,
     flag: u32,
     val: &MemLoc<'ll>,
-    llbuilder: &llvm::Builder<'ll>,
+    llbuilder: &llvm_sys::LLVMBuilder,
 ) -> &'ll llvm_sys::LLVMValue {
     is_flag_set(cx, flag, val.read(llbuilder), llbuilder)
 }
@@ -81,7 +81,7 @@ pub unsafe fn is_flag_set_mem<'ll>(
 //     cx: &CodegenCx<'_, 'll>,
 //     flag: u32,
 //     val: MemLoc<'ll>,
-//     llbuilder: &llvm::Builder<'ll>,
+//     llbuilder: &llvm_sys::LLVMBuilder,
 // ) -> &'ll llvm_sys::LLVMValue {
 //     is_flag_unset(cx, flag, val.read(llbuilder), llbuilder)
 // }
@@ -90,20 +90,20 @@ pub unsafe fn is_flag_set<'ll>(
     cx: &CodegenCx<'_, 'll>,
     flag: u32,
     val: &'ll llvm_sys::LLVMValue,
-    llbuilder: &llvm::Builder<'ll>,
+    llbuilder: &llvm_sys::LLVMBuilder,
 ) -> &'ll llvm_sys::LLVMValue {
     let mask = cx.const_unsigned_int(flag);
     let bits = LLVMBuildAnd(llbuilder, mask, val, UNNAMED);
-    LLVMBuildICmp(llbuilder, IntNE, bits, cx.const_int(0), UNNAMED)
+    LLVMBuildICmp(llbuilder, LLVMIntNE, bits, cx.const_int(0), UNNAMED)
 }
 
 pub unsafe fn is_flag_unset<'ll>(
     cx: &CodegenCx<'_, 'll>,
     flag: u32,
     val: &'ll llvm_sys::LLVMValue,
-    llbuilder: &llvm::Builder<'ll>,
+    llbuilder: &llvm_sys::LLVMBuilder,
 ) -> &'ll llvm_sys::LLVMValue {
     let mask = cx.const_unsigned_int(flag);
     let bits = LLVMBuildAnd(llbuilder, mask, val, UNNAMED);
-    LLVMBuildICmp(llbuilder, IntEQ, bits, cx.const_int(0), UNNAMED)
+    LLVMBuildICmp(llbuilder, LLVMIntEQ, bits, cx.const_int(0), UNNAMED)
 }

@@ -345,7 +345,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         &self,
         param: OsdiInstanceParam,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> Option<(&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType)> {
         let (pos, _, ty) = self.params.get_full(&param)?;
         let elem = NUM_CONST_FIELDS + pos as u32;
@@ -357,7 +357,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         &self,
         pos: u32,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let ty = self.params.get_index(pos as usize).unwrap().1;
         let elem = NUM_CONST_FIELDS + pos;
@@ -391,7 +391,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         &self,
         param: OsdiInstanceParam,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> Option<&'ll llvm_sys::LLVMValue> {
         let (ptr, ty) = self.param_ptr(param, ptr, llbuilder)?;
         let val = LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED);
@@ -403,7 +403,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         param_id: u32,
         ptr: &'ll llvm_sys::LLVMValue,
         val: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let (ptr, _) = self.nth_param_ptr(param_id, ptr, llbuilder);
         LLVMBuildStore(llbuilder, val, ptr)
@@ -413,7 +413,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         &self,
         pos: u32,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let (ptr, ty) = self.nth_param_ptr(pos, ptr, llbuilder);
         LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED)
@@ -423,7 +423,7 @@ impl<'ll> OsdiInstanceData<'ll> {
     //     &self,
     //     var: VarId,
     //     ptr: &'ll llvm_sys::LLVMValue,
-    //     llbuilder: &llvm::Builder<'ll>,
+    //     llbuilder: &llvm_sys::LLVMBuilder,
     // ) -> Option<(&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType)> {
     //     let (pos, _, ty) = self.opvars.get_full(&var)?;
     //     let elem = NUM_CONST_FIELDS + self.params.len() as u32 + pos as u32;
@@ -464,7 +464,7 @@ impl<'ll> OsdiInstanceData<'ll> {
 
     unsafe fn eval_output_slot_ptr(
         &self,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         ptr: &'ll llvm_sys::LLVMValue,
         slot: EvalOutputSlot,
     ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
@@ -483,7 +483,7 @@ impl<'ll> OsdiInstanceData<'ll> {
 
     unsafe fn load_eval_output_slot(
         &self,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         ptr: &'ll llvm_sys::LLVMValue,
         slot: EvalOutputSlot,
     ) -> &'ll llvm_sys::LLVMValue {
@@ -519,7 +519,7 @@ impl<'ll> OsdiInstanceData<'ll> {
     //     cx: &CodegenCx<'_, 'll>,
     //     param: OsdiInstanceParam,
     //     ptr: &'ll llvm_sys::LLVMValue,
-    //     llbuilder: &llvm::Builder<'ll>,
+    //     llbuilder: &llvm_sys::LLVMBuilder,
     // ) -> Option<(&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMValue)> {
     //     let pos = self.params.get_index_of(&param)?;
     //     Some(self.nth_param_given_pointer_and_mask(cx, pos as u32, ptr, llbuilder))
@@ -530,7 +530,7 @@ impl<'ll> OsdiInstanceData<'ll> {
     //     cx: &CodegenCx<'_, 'll>,
     //     pos: u32,
     //     ptr: &'ll llvm_sys::LLVMValue,
-    //     llbuilder: &llvm::Builder<'ll>,
+    //     llbuilder: &llvm_sys::LLVMBuilder,
     // ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMValue) {
     //     let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, PARAM_GIVEN, UNNAMED);
     //     bitfield::word_ptr_and_mask(cx, pos, arr_ptr, self.param_given, llbuilder)
@@ -541,7 +541,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         cx: &CodegenCx<'_, 'll>,
         pos: u32,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, PARAM_GIVEN, UNNAMED);
         bitfield::is_set(cx, pos, arr_ptr, self.param_given, llbuilder)
@@ -552,7 +552,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         cx: &CodegenCx<'_, 'll>,
         param: OsdiInstanceParam,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> Option<&'ll llvm_sys::LLVMValue> {
         let pos = self.params.get_index_of(&param)?;
         let res = self.is_nth_param_given(cx, pos as u32, ptr, llbuilder);
@@ -564,7 +564,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         cx: &CodegenCx<'_, 'll>,
         pos: u32,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) {
         let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, PARAM_GIVEN, UNNAMED);
         bitfield::set_bit(cx, pos, arr_ptr, self.param_given, llbuilder)
@@ -575,7 +575,7 @@ impl<'ll> OsdiInstanceData<'ll> {
     //     cx: &CodegenCx<'_, 'll>,
     //     param: OsdiInstanceParam,
     //     ptr: &'ll llvm_sys::LLVMValue,
-    //     llbuilder: &llvm::Builder<'ll>,
+    //     llbuilder: &llvm_sys::LLVMBuilder,
     // ) -> bool {
     //     if let Some(pos) = self.params.get_index_of(&param) {
     //         self.set_nth_param_given(cx, pos as u32, ptr, llbuilder);
@@ -590,7 +590,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         cx: &CodegenCx<'_, 'll>,
         node: SimUnknown,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, NODE_MAPPING, UNNAMED);
         let zero = cx.const_int(0);
@@ -605,7 +605,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         cx: &CodegenCx<'_, 'll>,
         idx: LimitState,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, STATE_IDX, UNNAMED);
         let zero = cx.const_int(0);
@@ -620,7 +620,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         node: SimUnknown,
         ptr: &'ll llvm_sys::LLVMValue,
         prev_result: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let off = self.read_node_off(cx, node, ptr, llbuilder);
         let ptr = LLVMBuildGEP2(llbuilder, cx.ty_double(), prev_result, [off].as_ptr(), 1, UNNAMED);
@@ -631,7 +631,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         &self,
         node: SimUnknown,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         reactive: bool,
     ) -> Option<&'ll llvm_sys::LLVMValue> {
         let residual = &self.residual[node];
@@ -661,7 +661,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         &self,
         node: SimUnknown,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         reactive: bool,
     ) -> Option<&'ll llvm_sys::LLVMValue> {
         let residual = &self.residual[node];
@@ -695,7 +695,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
         dst: &'ll llvm_sys::LLVMValue,
         contrib: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         negate: bool,
     ) {
         let off = self.read_node_off(cx, node, ptr, llbuilder);
@@ -729,7 +729,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         cx: &CodegenCx<'_, 'll>,
         entry: MatrixEntryId,
         ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         reactive: bool,
         val: &'ll llvm_sys::LLVMValue,
     ) {
@@ -757,7 +757,7 @@ impl<'ll> OsdiInstanceData<'ll> {
 
     fn cache_slot_ptr(
         &self,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         slot: CacheSlot,
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
@@ -770,7 +770,7 @@ impl<'ll> OsdiInstanceData<'ll> {
     pub unsafe fn load_cache_slot(
         &self,
         module: &OsdiModule,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         slot: CacheSlot,
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
@@ -780,7 +780,7 @@ impl<'ll> OsdiInstanceData<'ll> {
         if module.init.cache_slots[slot] == hir::Type::Bool {
             val = LLVMBuildICmp(
                 llbuilder,
-                IntPredicate::IntNE,
+                IntPredicate::LLVMIntNE,
                 val,
                 LLVMConstInt(ty, 0, llvm::False),
                 UNNAMED,
@@ -793,7 +793,7 @@ impl<'ll> OsdiInstanceData<'ll> {
     pub unsafe fn store_cache_slot(
         &self,
         module: &OsdiModule,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         slot: CacheSlot,
         ptr: &'ll llvm_sys::LLVMValue,
         mut val: &'ll llvm_sys::LLVMValue,
@@ -808,7 +808,7 @@ impl<'ll> OsdiInstanceData<'ll> {
     pub unsafe fn store_is_collapsible(
         &self,
         cx: &CodegenCx<'_, 'll>,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         ptr: &'ll llvm_sys::LLVMValue,
         idx: &'ll llvm_sys::LLVMValue,
     ) {
@@ -868,7 +868,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         output: EvalOutput,
         inst_ptr: &'ll llvm_sys::LLVMValue,
         model_ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let OsdiCompilationUnit { inst_data, model_data, cx, module, .. } = self;
         let (ptr, ty) = match output {
@@ -926,7 +926,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         entry: MatrixEntryId,
         inst_ptr: &'ll llvm_sys::LLVMValue,
         model_ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
         reactive: bool,
     ) -> Option<&'ll llvm_sys::LLVMValue> {
         let entry = &self.inst_data.jacobian[entry];
@@ -940,7 +940,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         pos: u32,
         inst_ptr: &'ll llvm_sys::LLVMValue,
         model_ptr: &'ll llvm_sys::LLVMValue,
-        llbuilder: &llvm::Builder<'ll>,
+        llbuilder: &llvm_sys::LLVMBuilder,
     ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let OsdiCompilationUnit { inst_data, model_data, cx, module, .. } = self;
         match *inst_data.opvars.get_index(pos as usize).unwrap().1 {

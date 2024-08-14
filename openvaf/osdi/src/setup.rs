@@ -1,6 +1,6 @@
 use hir_lower::{CallBackKind, ParamInfoKind, ParamKind, PlaceKind};
 
-use llvm::IntPredicate::IntSLT;
+use llvm_sys::LLVMIntPredicate::LLVMIntSLT;
 use llvm::{
     LLVMAppendBasicBlockInContext, LLVMBuildBr, LLVMBuildCondBr, LLVMBuildRetVoid,
     LLVMCreateBuilderInContext, LLVMDisposeBuilder, LLVMGetParam, LLVMPositionBuilderAtEnd,
@@ -302,7 +302,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                     }
 
                     let id = cx.const_unsigned_int(node_id.into());
-                    let is_connected = unsafe { builder.int_cmp(id, connected_terminals, IntSLT) };
+                    let is_connected = unsafe { builder.int_cmp(id, connected_terminals, LLVMIntSLT) };
                     builder.params[dst] = BuilderVal::Eager(is_connected)
                 }
             }

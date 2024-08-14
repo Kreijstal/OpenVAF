@@ -4,7 +4,8 @@ use camino::Utf8Path;
 use hir::Type;
 use hir_lower::{CallBackKind, CurrentKind, HirInterner, ParamInfoKind, ParamKind, PlaceKind};
 use lasso::Rodeo;
-use llvm::{OptLevel, UNNAMED};
+use llvm_sys::target_machine::LLVMCodeGenOptLevel;
+use mir_llvm::{UNNAMED};
 use mir::{ControlFlowGraph, FuncRef, Function};
 use mir_llvm::{Builder, BuilderVal, CallbackFun, CodegenCx, LLVMBackend};
 use stdx::iter::multiunzip;
@@ -81,7 +82,7 @@ pub struct CodegenCtx<'a, 't> {
     pub model_info: &'a ModelInfo,
     pub llbackend: &'a LLVMBackend<'t>,
     pub literals: &'a mut Rodeo,
-    pub opt_lvl: OptLevel,
+    pub opt_lvl: LLVMCodeGenOptLevel,
 }
 
 struct Codegen<'a, 'b, 'll> {
@@ -466,7 +467,7 @@ impl CodegenCtx<'_, '_> {
                 let off = builder.cx.const_usize(param_given_offset + offset);
                 let ptr = builder.gep(builder.cx.ty_c_bool(), param_given_ptr, &[off]);
                 let cbool = builder.load(builder.cx.ty_c_bool(), ptr);
-                builder.int_cmp(cbool, builder.cx.const_c_bool(false), llvm::IntPredicate::IntNE)
+                builder.int_cmp(cbool, builder.cx.const_c_bool(false), llvm_sys::LLVMIntPredicate::LLVMIntNE)
             };
 
             let val_id = intern.params.unwrap_index(&ParamKind::Param(*param));
@@ -618,7 +619,7 @@ impl CodegenCtx<'_, '_> {
         param_init_func: Function,
         param_init_intern: HirInterner,
     ) {
-        let module = unsafe { self.llbackend.new_module("model_info", OptLevel::None).unwrap() };
+        let module = unsafe { self.llbackend.new_module("model_info", LLVMCodeGenOptLevel::LLVMCodeGenLevelNone).unwrap() };
         let cx = unsafe { self.llbackend.new_ctx(self.literals, &module) };
 
         let (fun_names, fun_symbols) = interned_model.functions(&cx);

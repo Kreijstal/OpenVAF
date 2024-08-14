@@ -3,7 +3,8 @@ use camino::{Utf8Path, Utf8PathBuf};
 use hir::{CompilationDB, ParamSysFun, Type};
 use hir_lower::{CallBackKind, HirInterner, ParamKind};
 use lasso::Rodeo;
-use llvm::{LLVMDisposeTargetData, OptLevel};
+use llvm_sys::target_machine::LLVMCodeGenOptLevel;
+use llvm::{LLVMDisposeTargetData};
 use mir_llvm::{CodegenCx, LLVMBackend};
 use salsa::ParallelDatabase;
 use sim_back::{CompiledModule, ModuleInfo};
@@ -38,7 +39,7 @@ pub fn compile(
     target: &Target,
     back: &LLVMBackend,
     emit: bool,
-    opt_lvl: OptLevel,
+    opt_lvl: LLVMCodeGenOptLevel,
 ) -> Vec<Utf8PathBuf> {
     let mut literals = Rodeo::new();
     let mut lim_table = TiSet::default();
