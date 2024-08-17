@@ -273,7 +273,7 @@ fn print_callback<'ll>(
         LLVMPositionBuilderAtEnd(llbuilder, entry_bb);
         let handle = LLVMGetParam(NonNull::from(fun).as_ptr(), 0);
         let fmt_lit = LLVMGetParam(NonNull::from(fun).as_ptr(), 1);
-        let mut args = vec![cx.const_null_ptr(), cx.const_usize(0), LLVMGetParam(NonNull::from(fun).as_ptr(), 1)];
+        let mut args = vec![cx.const_null_ptr(), cx.const_usize(0), &*LLVMGetParam(NonNull::from(fun).as_ptr(), 1)];
 
         let exp_table = cx.get_declared_value("EXP").expect("constant EXP missing from stdlib");
         let exp_table_ty = cx.ty_array(cx.ty_double(), 11);
