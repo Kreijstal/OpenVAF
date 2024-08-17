@@ -63,7 +63,7 @@ pub unsafe fn is_set<'ll>(
     let word = LLVMBuildLoad2(NonNull::from(llbuilder).as_ptr(), NonNull::from(cx.ty_int()).as_ptr(),NonNull::from( ptr).as_ptr(), UNNAMED);
     let is_set = LLVMBuildAnd(NonNull::from(llbuilder).as_ptr(), word, NonNull::from(mask).as_ptr(), UNNAMED);
     let zero = cx.const_int(0);
-    LLVMBuildICmp(llbuilder, LLVMIntNE, is_set, zero, UNNAMED)
+    LLVMBuildICmp(NonNull::from(llbuilder).as_ptr(), LLVMIntNE, NonNull::from(is_set).as_ptr(), NonNull::from(zero).as_ptr(), UNNAMED)
 }
 
 pub unsafe fn set_bit<'ll>(
