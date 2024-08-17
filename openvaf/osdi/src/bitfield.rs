@@ -105,7 +105,7 @@ pub unsafe fn is_flag_set<'ll>(
 ) -> &'ll llvm_sys::LLVMValue {
     let mask = cx.const_unsigned_int(flag);
     let bits = LLVMBuildAnd(NonNull::from(llbuilder).as_ptr(), NonNull::from(mask).as_ptr(), NonNull::from(val).as_ptr(), UNNAMED);
-    LLVMBuildICmp(NonNull::from(llbuilder).as_ptr(), LLVMIntNE, bits, NonNull::from(cx.const_int(0)).as_ptr(), UNNAMED)
+    unsafe { &*LLVMBuildICmp(NonNull::from(llbuilder).as_ptr(), LLVMIntNE, bits, NonNull::from(cx.const_int(0)).as_ptr(), UNNAMED) }
 }
 
 pub unsafe fn is_flag_unset<'ll>(
@@ -116,5 +116,5 @@ pub unsafe fn is_flag_unset<'ll>(
 ) -> &'ll llvm_sys::LLVMValue {
     let mask = cx.const_unsigned_int(flag);
     let bits = LLVMBuildAnd(NonNull::from(llbuilder).as_ptr(), NonNull::from(mask).as_ptr(), NonNull::from(val).as_ptr(), UNNAMED);
-    LLVMBuildICmp(NonNull::from(llbuilder).as_ptr(), LLVMIntEQ, bits, NonNull::from(cx.const_int(0)).as_ptr(), UNNAMED)
+    unsafe { &*LLVMBuildICmp(NonNull::from(llbuilder).as_ptr(), LLVMIntEQ, bits, NonNull::from(cx.const_int(0)).as_ptr(), UNNAMED) }
 }
