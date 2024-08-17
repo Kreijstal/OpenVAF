@@ -268,11 +268,11 @@ fn print_callback<'ll>(
         let write_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(fun).as_ptr(), UNNAMED);
         let err_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(fun).as_ptr(), UNNAMED);
         let exit_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(fun).as_ptr(), UNNAMED);
-        let llbuilder = llvm_sys::core::LLVMCreateBuilderInContext(cx.llcx);
+        let llbuilder = llvm_sys::core::LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
 
         LLVMPositionBuilderAtEnd(llbuilder, entry_bb);
-        let handle = LLVMGetParam(fun, 0);
-        let fmt_lit = LLVMGetParam(fun, 1);
+        let handle = LLVMGetParam(NonNull::from(fun).as_ptr(), 0);
+        let fmt_lit = LLVMGetParam(NonNull::from(fun).as_ptr(), 1);
         let mut args = vec![cx.const_null_ptr(), cx.const_usize(0), LLVMGetParam(fun, 1)];
 
         let exp_table = cx.get_declared_value("EXP").expect("constant EXP missing from stdlib");
