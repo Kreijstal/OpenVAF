@@ -273,7 +273,7 @@ fn print_callback<'ll>(
         LLVMPositionBuilderAtEnd(llbuilder, entry_bb);
         let handle = LLVMGetParam(NonNull::from(fun).as_ptr(), 0);
         let fmt_lit = LLVMGetParam(NonNull::from(fun).as_ptr(), 1);
-        let mut args = vec![cx.const_null_ptr(), cx.const_usize(0), LLVMGetParam(fun, 1)];
+        let mut args = vec![cx.const_null_ptr(), cx.const_usize(0), LLVMGetParam(NonNull::from(fun).as_ptr(), 1)];
 
         let exp_table = cx.get_declared_value("EXP").expect("constant EXP missing from stdlib");
         let exp_table_ty = cx.ty_array(cx.ty_double(), 11);
@@ -288,14 +288,14 @@ fn print_callback<'ll>(
         let mut free = Vec::new();
 
         for (i, arg) in arg_tys.iter().enumerate() {
-            let val = LLVMGetParam(fun, i as u32 + 2);
+            let val = LLVMGetParam(NonNull::from(fun).as_ptr(), i as u32 + 2);
             match arg.kind {
                 FmtArgKind::Binary => {
                     let formatted_str = LLVMBuildCall2(
                         llbuilder,
-                        fmt_binary_ty,
-                        fmt_binary,
-                        [val].as_ptr(),
+                        NonNull::from(fmt_binary_ty).as_ptr(),
+                        NonNull::from(fmt_binary).as_ptr(),
+                        [NonNull::from(val).as_ptr()].as_ptr(),
                         1,
                         UNNAMED,
                     );
