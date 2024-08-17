@@ -10,7 +10,8 @@ use llvm_sys::core::{
     LLVMGetParam, LLVMIsDeclaration, LLVMPositionBuilderAtEnd, LLVMSetLinkage,
     LLVMSetUnnamedAddress
 };
-use llvm_sys::{LLVMUnnamedAddr,LLVMIntPredicate};
+use llvm_sys::{LLVMUnnamedAddr, LLVMIntPredicate, core::{LLVMGetFirstFunction, LLVMGetNextFunction}};
+use std::iter;
 use mir::{FuncRef, Function};
 use mir_llvm::{CallbackFun, CodegenCx, LLVMBackend, ModuleLlvm,UNNAMED};
 use sim_back::dae::DaeSystem;
@@ -29,6 +30,18 @@ use crate::metadata::OsdiLimFunction;
 use crate::model_data::OsdiModelData;
 use crate::{lltype, OsdiLimId};
 
+fn function_iter(module: &llvm_sys::LLVMModule) -> impl Iterator<Item = *mut llvm_sys::LLVMValue> + '_ {
+    let fun = unsafe { LLVMGetFirstFunction(module) };
+    iter::successors(Some(fun), |&fun| {
+        let next_fun = unsafe { LLVMGetNextFunction(fun) };
+        if next_fun.is_null() {
+            None
+        } else {
+            Some(next_fun)
+        }
+    })
+}
+
 pub fn new_codegen<'a, 'll>(
     back: &'a LLVMBackend,
     llmod: &'ll ModuleLlvm,
@@ -37,7 +50,7 @@ pub fn new_codegen<'a, 'll>(
     let cx = unsafe { back.new_ctx(literals, llmod) };
     cx.include_bitcode(stdlib_bitcode(back.target()));
 
-    for fun in llvm::function_iter(llmod.llmod()) {
+    for fun in function_iter(llmod.llmod()) {
         unsafe {
             // LLVMPurgeAttrs(fun);
             if LLVMIsDeclaration(fun) != llvm::False {
