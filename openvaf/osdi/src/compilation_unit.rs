@@ -33,7 +33,7 @@ use crate::model_data::OsdiModelData;
 use crate::{lltype, OsdiLimId};
 
 fn function_iter(module: &llvm_sys::LLVMModule) -> impl Iterator<Item = *mut llvm_sys::LLVMValue> + '_ {
-    let fun = unsafe { LLVMGetFirstFunction(module as *mut llvm_sys::LLVMModule) };
+    let fun = unsafe { LLVMGetFirstFunction(module) };
     iter::successors(Some(fun), |&fun| {
         let next_fun = unsafe { LLVMGetNextFunction(fun) };
         if next_fun.is_null() {
