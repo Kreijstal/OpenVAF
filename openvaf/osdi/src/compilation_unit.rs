@@ -293,9 +293,9 @@ fn print_callback<'ll>(
                 FmtArgKind::Binary => {
                     let formatted_str = LLVMBuildCall2(
                         llbuilder,
-                        NonNull::from(fmt_binary_ty).as_ptr(),
-                        NonNull::from(fmt_binary).as_ptr(),
-                        [NonNull::from(val).as_ptr()].as_ptr(),
+                        fmt_binary_ty,
+                        fmt_binary,
+                        [val].as_ptr(),
                         1,
                         UNNAMED,
                     );
