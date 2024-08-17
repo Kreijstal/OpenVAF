@@ -69,8 +69,8 @@ pub fn new_codegen<'a, 'll>(
         cx.get_declared_value("FMT_CHARS").expect("constant FMT_CHARS missing from stdlib");
 
     unsafe {
-        LLVMSetLinkage(exp_table.as_ptr(), LLVMLinkage::LLVMInternalLinkage);
-        LLVMSetLinkage(char_table.as_ptr(), LLVMLinkage::LLVMInternalLinkage);
+        LLVMSetLinkage(NonNull::from(exp_table).as_ptr(), LLVMLinkage::LLVMInternalLinkage);
+        LLVMSetLinkage(NonNull::from(char_table).as_ptr(), LLVMLinkage::LLVMInternalLinkage);
     }
 
     cx
