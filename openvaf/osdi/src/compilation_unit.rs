@@ -60,7 +60,7 @@ pub fn new_codegen<'a, 'll>(
             }
 
             LLVMSetLinkage(fun, LLVMLinkage::LLVMInternalLinkage);
-            LLVMSetUnnamedAddress(fun, LLVMUnnamedAddr::Global);
+            LLVMSetUnnamedAddress(fun, LLVMUnnamedAddr::LLVMGlobalUnnamedAddr);
         }
     }
 
