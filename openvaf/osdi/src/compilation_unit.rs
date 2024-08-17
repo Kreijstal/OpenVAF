@@ -103,9 +103,9 @@ impl<'a, 'b, 'll> OsdiCompilationUnit<'a, 'b, 'll> {
                     .define_global("OSDI_LIM_TABLE", ty)
                     .unwrap_or_else(|| unreachable!("symbol OSDI_LIM_TABLE already defined"));
                 unsafe {
-                    llvm_sys::core::LLVMSetLinkage(ptr, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
-                    llvm_sys::core::LLVMSetUnnamedAddress(ptr, llvm_sys::LLVMUnnamedAddr::LLVMNoUnnamedAddr);
-                    llvm_sys::core::LLVMSetDLLStorageClass(ptr, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
+                    llvm_sys::core::LLVMSetLinkage(NonNull::from(ptr).as_ptr(), llvm_sys::LLVMLinkage::LLVMExternalLinkage);
+                    llvm_sys::core::LLVMSetUnnamedAddress(NonNull::from(ptr).as_ptr(), llvm_sys::LLVMUnnamedAddr::LLVMNoUnnamedAddr);
+                    llvm_sys::core::LLVMSetDLLStorageClass(NonNull::from(ptr).as_ptr(), llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
                 }
                 Some(ptr)
             } else {
@@ -263,11 +263,11 @@ fn print_callback<'ll>(
     let name = cx.local_callback_name();
     let fun = cx.declare_int_fn(&name, fun_ty);
     unsafe {
-        let entry_bb = LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
-        let alloc_bb = LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
-        let write_bb = LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
-        let err_bb = LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
-        let exit_bb = LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
+        let entry_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
+        let alloc_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
+        let write_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
+        let err_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
+        let exit_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
         let llbuilder = llvm_sys::core::LLVMCreateBuilderInContext(cx.llcx);
 
         LLVMPositionBuilderAtEnd(llbuilder, entry_bb);
