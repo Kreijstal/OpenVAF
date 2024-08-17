@@ -12,6 +12,8 @@ use llvm_sys::core::{
 };
 use llvm_sys::{LLVMUnnamedAddr, LLVMIntPredicate, core::{LLVMGetFirstFunction, LLVMGetNextFunction}};
 use std::iter;
+use std::ptr::NonNull;
+use std::os::raw::c_uint;
 use mir::{FuncRef, Function};
 use mir_llvm::{CallbackFun, CodegenCx, LLVMBackend, ModuleLlvm,UNNAMED};
 use sim_back::dae::DaeSystem;
@@ -53,7 +55,7 @@ pub fn new_codegen<'a, 'll>(
     for fun in function_iter(llmod.llmod()) {
         unsafe {
             // LLVMPurgeAttrs(fun);
-            if LLVMIsDeclaration(fun) != llvm::False {
+            if LLVMIsDeclaration(fun) != 0 as c_uint {
                 continue;
             }
 
