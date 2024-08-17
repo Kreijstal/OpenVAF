@@ -263,11 +263,11 @@ fn print_callback<'ll>(
     let name = cx.local_callback_name();
     let fun = cx.declare_int_fn(&name, fun_ty);
     unsafe {
-        let entry_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
-        let alloc_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
-        let write_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
-        let err_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
-        let exit_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, UNNAMED);
+        let entry_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, NonNull::from(UNNAMED).as_ptr());
+        let alloc_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, NonNull::from(UNNAMED).as_ptr());
+        let write_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, NonNull::from(UNNAMED).as_ptr());
+        let err_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, NonNull::from(UNNAMED).as_ptr());
+        let exit_bb = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), fun, NonNull::from(UNNAMED).as_ptr());
         let llbuilder = llvm_sys::core::LLVMCreateBuilderInContext(cx.llcx);
 
         LLVMPositionBuilderAtEnd(llbuilder, entry_bb);
