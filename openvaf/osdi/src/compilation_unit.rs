@@ -103,9 +103,9 @@ impl<'a, 'b, 'll> OsdiCompilationUnit<'a, 'b, 'll> {
                     .define_global("OSDI_LIM_TABLE", ty)
                     .unwrap_or_else(|| unreachable!("symbol OSDI_LIM_TABLE already defined"));
                 unsafe {
-                    llvm::LLVMSetLinkage(ptr, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
-                    llvm::LLVMSetUnnamedAddress(ptr, llvm_sys::LLVMUnnamedAddr::LLVMNoUnnamedAddr);
-                    llvm::LLVMSetDLLStorageClass(ptr, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
+                    llvm_sys::core::LLVMSetLinkage(ptr, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
+                    llvm_sys::core::LLVMSetUnnamedAddress(ptr, llvm_sys::LLVMUnnamedAddr::LLVMNoUnnamedAddr);
+                    llvm_sys::core::LLVMSetDLLStorageClass(ptr, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
                 }
                 Some(ptr)
             } else {
@@ -268,7 +268,7 @@ fn print_callback<'ll>(
         let write_bb = LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
         let err_bb = LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
         let exit_bb = LLVMAppendBasicBlockInContext(cx.llcx, fun, UNNAMED);
-        let llbuilder = llvm::LLVMCreateBuilderInContext(cx.llcx);
+        let llbuilder = llvm_sys::core::LLVMCreateBuilderInContext(cx.llcx);
 
         LLVMPositionBuilderAtEnd(llbuilder, entry_bb);
         let handle = LLVMGetParam(fun, 0);
@@ -384,8 +384,8 @@ fn print_callback<'ll>(
         let fun_ty = cx.ty_func(&[cx.ty_ptr(), cx.ty_ptr(), cx.ty_int()], cx.ty_void());
         let fun = LLVMBuildLoad2(llbuilder, cx.ty_ptr(), fun_ptr, UNNAMED);
         LLVMBuildCall2(llbuilder, fun_ty, fun, [handle, msg, flags].as_ptr(), 3, UNNAMED);
-        llvm::LLVMBuildRetVoid(llbuilder);
-        llvm::LLVMDisposeBuilder(llbuilder);
+        llvm_sys::core::LLVMBuildRetVoid(llbuilder);
+        llvm_sys::core::LLVMDisposeBuilder(llbuilder);
     }
 
     (fun, fun_ty)
