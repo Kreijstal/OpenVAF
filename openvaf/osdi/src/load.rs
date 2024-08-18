@@ -3,6 +3,7 @@ use llvm_sys::core::{
     LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildRetVoid, LLVMBuildStore, LLVMCreateBuilderInContext,
     LLVMDisposeBuilder, LLVMGetParam, LLVMPositionBuilderAtEnd,
 };
+use std::ptr::NonNull;
 use mir_llvm::UNNAMED;
 use sim_back::dae::NoiseSourceKind;
 use stdx::iter::zip;
@@ -49,7 +50,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let llfunc = cx.declare_int_c_fn(name, fun_ty);
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+            let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
             let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
             LLVMPositionBuilderAtEnd(llbuilder, entry);
             let inst = LLVMGetParam(llfunc, 0);
