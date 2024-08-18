@@ -188,7 +188,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
     pub fn jacobian_entries(&self, target_data: &LLVMTargetDataRef) -> Vec<OsdiJacobianEntry> {
         let OsdiCompilationUnit { inst_data, module, .. } = self;
         let mut jacobian_ptr_react_offset =
-            unsafe { LLVMOffsetOfElement(target_data, inst_data.ty, JACOBIAN_PTR_REACT) } as u32;
+            unsafe { LLVMOffsetOfElement(*target_data, NonNull::from(inst_data.ty).as_ptr(), JACOBIAN_PTR_REACT) } as u32;
 
         module
             .dae_system

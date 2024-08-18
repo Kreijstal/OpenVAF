@@ -1,7 +1,7 @@
 use llvm_sys::core::{
     LLVMAppendBasicBlockInContext, LLVMBuildCall2, LLVMBuildFAdd, LLVMBuildFDiv, LLVMBuildFMul,
     LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildRetVoid, LLVMBuildStore, LLVMCreateBuilderInContext,
-    LLVMDisposeBuilder, LLVMGetParam, LLVMPositionBuilderAtEnd
+    LLVMDisposeBuilder, LLVMGetParam, LLVMPositionBuilderAtEnd,
 };
 use mir_llvm::UNNAMED;
 use sim_back::dae::NoiseSourceKind;

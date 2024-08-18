@@ -3,11 +3,10 @@ use hir_lower::{CallBackKind, ParamInfoKind, ParamKind, PlaceKind};
 use llvm_sys::core::{
     LLVMAppendBasicBlockInContext, LLVMBuildBr, LLVMBuildCondBr, LLVMBuildRetVoid,
     LLVMCreateBuilderInContext, LLVMDisposeBuilder, LLVMGetParam, LLVMPositionBuilderAtEnd,
-    
 };
 use llvm_sys::LLVMIntPredicate::LLVMIntSLT;
 use mir::ControlFlowGraph;
-use mir_llvm::{Builder, BuilderVal, CallbackFun, CodegenCx,UNNAMED};
+use mir_llvm::{Builder, BuilderVal, CallbackFun, CodegenCx, UNNAMED};
 use sim_back::SimUnknownKind;
 
 use crate::compilation_unit::{general_callbacks, OsdiCompilationUnit};

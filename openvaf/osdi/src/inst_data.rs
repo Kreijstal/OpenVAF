@@ -1,17 +1,25 @@
 use ahash::RandomState;
+use core::ffi::c_uint;
+use core::ptr::NonNull;
 use hir::{CompilationDB, ParamSysFun, Parameter, Variable};
 use hir_lower::{HirInterner, LimitState, ParamKind, PlaceKind};
 use indexmap::IndexMap;
-use core::ffi::c_uint;
 use llvm_sys::core::{
-    LLVMBuildFAdd, LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildIntCast2,
-    LLVMBuildLoad2, LLVMBuildStore, LLVMBuildStructGEP2, LLVMConstInt, 
-//    LLVMSetFastMath
+    LLVMBuildFAdd,
+    LLVMBuildFSub,
+    LLVMBuildGEP2,
+    LLVMBuildICmp,
+    LLVMBuildIntCast2,
+    LLVMBuildLoad2,
+    LLVMBuildStore,
+    LLVMBuildStructGEP2,
+    LLVMConstInt,
+    //    LLVMSetFastMath
 };
+use llvm_sys::target::{LLVMOffsetOfElement, LLVMTargetDataRef};
 use llvm_sys::LLVMIntPredicate;
-use llvm_sys::target::{LLVMTargetDataRef,LLVMOffsetOfElement};
 use mir::{strip_optbarrier, Const, Function, Param, ValueDef, F_ZERO};
-use mir_llvm::{CodegenCx, MemLoc,UNNAMED};
+use mir_llvm::{CodegenCx, MemLoc, UNNAMED};
 use sim_back::dae::{self, MatrixEntryId, SimUnknown};
 use sim_back::init::CacheSlot;
 use stdx::packed_option::PackedOption;
@@ -28,6 +36,12 @@ pub enum OsdiInstanceParam {
     User(Parameter),
 }
 
+macro_rules! llvm_array_nonnull {
+    ($($element:expr),+ $(,)?) => {{
+        let mut temp = [$(core::ptr::NonNull::from($element).as_ptr()),+];
+        temp.as_mut_ptr()
+    }};
+}
 pub const NUM_CONST_FIELDS: u32 = 8;
 pub const PARAM_GIVEN: u32 = 0;
 pub const JACOBIAN_PTR_RESIST: u32 = 1;
@@ -352,7 +366,13 @@ impl<'ll> OsdiInstanceData<'ll> {
     ) -> Option<(&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType)> {
         let (pos, _, ty) = self.params.get_full(&param)?;
         let elem = NUM_CONST_FIELDS + pos as u32;
-        let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, elem, UNNAMED);
+        let ptr = &*LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            elem,
+            UNNAMED,
+        );
         Some((ptr, ty))
     }
 
@@ -364,7 +384,13 @@ impl<'ll> OsdiInstanceData<'ll> {
     ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let ty = self.params.get_index(pos as usize).unwrap().1;
         let elem = NUM_CONST_FIELDS + pos;
-        let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, elem, UNNAMED);
+        let ptr = &*LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            elem,
+            UNNAMED,
+        );
         (ptr, ty)
     }
 
@@ -397,7 +423,12 @@ impl<'ll> OsdiInstanceData<'ll> {
         llbuilder: &llvm_sys::LLVMBuilder,
     ) -> Option<&'ll llvm_sys::LLVMValue> {
         let (ptr, ty) = self.param_ptr(param, ptr, llbuilder)?;
-        let val = LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED);
+        let val = &*LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            UNNAMED,
+        );
         Some(val)
     }
 
@@ -409,7 +440,11 @@ impl<'ll> OsdiInstanceData<'ll> {
         llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let (ptr, _) = self.nth_param_ptr(param_id, ptr, llbuilder);
-        LLVMBuildStore(llbuilder, val, ptr)
+        &*LLVMBuildStore(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(val).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+        )
     }
 
     pub unsafe fn read_nth_param(
@@ -419,7 +454,12 @@ impl<'ll> OsdiInstanceData<'ll> {
         llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let (ptr, ty) = self.nth_param_ptr(pos, ptr, llbuilder);
-        LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED)
+        &*LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            UNNAMED,
+        )
     }
 
     // pub unsafe fn opvar_ptr(
@@ -447,7 +487,9 @@ impl<'ll> OsdiInstanceData<'ll> {
             + self.cache_slots.len() as u32
             + u32::from(slot.expand()?);
 
-        let off = unsafe { LLVMOffsetOfElement(target_data, self.ty, elem) } as u32;
+        let off =
+            unsafe { LLVMOffsetOfElement(*target_data, NonNull::from(self.ty).as_ptr(), elem) }
+                as u32;
         Some(off)
     }
 
@@ -461,7 +503,9 @@ impl<'ll> OsdiInstanceData<'ll> {
         let residual = if reactive { &residual.react_lim_rhs } else { &residual.resist_lim_rhs };
         let slot = residual.expand()?;
         let elem = self.eval_output_slot_elem(slot);
-        let off = unsafe { LLVMOffsetOfElement(target_data, self.ty, elem) } as u32;
+        let off =
+            unsafe { LLVMOffsetOfElement(*target_data, NonNull::from(self.ty).as_ptr(), elem) }
+                as u32;
         Some(off)
     }
 
@@ -472,7 +516,13 @@ impl<'ll> OsdiInstanceData<'ll> {
         slot: EvalOutputSlot,
     ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let elem = self.eval_output_slot_elem(slot);
-        let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, elem, UNNAMED);
+        let ptr = &*LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            elem,
+            UNNAMED,
+        );
         let ty = self.eval_outputs.get_index(slot).unwrap().1;
         (ptr, ty)
     }
@@ -491,7 +541,12 @@ impl<'ll> OsdiInstanceData<'ll> {
         slot: EvalOutputSlot,
     ) -> &'ll llvm_sys::LLVMValue {
         let (ptr, ty) = self.eval_output_slot_ptr(llbuilder, ptr, slot);
-        LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED)
+        &*LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            UNNAMED,
+        )
     }
 
     pub unsafe fn store_eval_output_slot(
@@ -546,7 +601,13 @@ impl<'ll> OsdiInstanceData<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
-        let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, PARAM_GIVEN, UNNAMED);
+        let arr_ptr = &*LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            PARAM_GIVEN,
+            UNNAMED,
+        );
         bitfield::is_set(cx, pos, arr_ptr, self.param_given, llbuilder)
     }
 
@@ -569,7 +630,13 @@ impl<'ll> OsdiInstanceData<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm_sys::LLVMBuilder,
     ) {
-        let arr_ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, PARAM_GIVEN, UNNAMED);
+        let arr_ptr = &*LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            PARAM_GIVEN,
+            UNNAMED,
+        );
         bitfield::set_bit(cx, pos, arr_ptr, self.param_given, llbuilder)
     }
 
@@ -595,12 +662,29 @@ impl<'ll> OsdiInstanceData<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
-        let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, NODE_MAPPING, UNNAMED);
+        let ptr = &*LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            NODE_MAPPING,
+            UNNAMED,
+        );
         let zero = cx.const_int(0);
         let node = cx.const_unsigned_int(node.into());
-        let ptr =
-            LLVMBuildGEP2(llbuilder, self.node_mapping, ptr, [zero, node].as_ptr(), 2, UNNAMED);
-        LLVMBuildLoad2(llbuilder, cx.ty_int(), ptr, UNNAMED)
+        let ptr = &*LLVMBuildGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.node_mapping).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            llvm_array_nonnull!(zero, node),
+            2,
+            UNNAMED,
+        );
+        &*LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.ty_int()).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            UNNAMED,
+        )
     }
 
     pub unsafe fn read_state_idx(
@@ -610,11 +694,29 @@ impl<'ll> OsdiInstanceData<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
         llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
-        let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, STATE_IDX, UNNAMED);
+        let ptr = &*LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            STATE_IDX,
+            UNNAMED,
+        );
         let zero = cx.const_int(0);
         let state = cx.const_unsigned_int(idx.into());
-        let ptr = LLVMBuildGEP2(llbuilder, self.state_idx, ptr, [zero, state].as_ptr(), 2, UNNAMED);
-        LLVMBuildLoad2(llbuilder, cx.ty_int(), ptr, UNNAMED)
+        let ptr = &*LLVMBuildGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.state_idx).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            llvm_array_nonnull![zero, state],
+            2,
+            UNNAMED,
+        );
+        &*LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.ty_int()).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            UNNAMED,
+        )
     }
 
     pub unsafe fn read_node_voltage(
@@ -626,8 +728,20 @@ impl<'ll> OsdiInstanceData<'ll> {
         llbuilder: &llvm_sys::LLVMBuilder,
     ) -> &'ll llvm_sys::LLVMValue {
         let off = self.read_node_off(cx, node, ptr, llbuilder);
-        let ptr = LLVMBuildGEP2(llbuilder, cx.ty_double(), prev_result, [off].as_ptr(), 1, UNNAMED);
-        LLVMBuildLoad2(llbuilder, cx.ty_double(), ptr, UNNAMED)
+        let ptr = &*LLVMBuildGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.ty_double()).as_ptr(),
+            NonNull::from(prev_result).as_ptr(),
+            llvm_array_nonnull![off],
+            1,
+            UNNAMED,
+        );
+        &*LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.ty_double()).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            UNNAMED,
+        )
     }
 
     pub unsafe fn read_residual(
@@ -702,18 +816,40 @@ impl<'ll> OsdiInstanceData<'ll> {
         negate: bool,
     ) {
         let off = self.read_node_off(cx, node, ptr, llbuilder);
-        let dst = LLVMBuildGEP2(llbuilder, cx.ty_double(), dst, [off].as_ptr(), 1, UNNAMED);
-        let old = LLVMBuildLoad2(llbuilder, cx.ty_double(), dst, UNNAMED);
+        let dst = LLVMBuildGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.ty_double()).as_ptr(),
+            NonNull::from(dst).as_ptr(),
+            llvm_array_nonnull![off],
+            1,
+            UNNAMED,
+        );
+        let old = LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.ty_double()).as_ptr(),
+            dst,
+            UNNAMED,
+        );
         let val = if negate {
-            LLVMBuildFSub(llbuilder, old, contrib, UNNAMED)
+            LLVMBuildFSub(
+                NonNull::from(llbuilder).as_ptr(),
+                old,
+                NonNull::from(contrib).as_ptr(),
+                UNNAMED,
+            )
         } else {
-            LLVMBuildFAdd(llbuilder, old, contrib, UNNAMED)
+            LLVMBuildFAdd(
+                NonNull::from(llbuilder).as_ptr(),
+                old,
+                NonNull::from(contrib).as_ptr(),
+                UNNAMED,
+            )
         };
 
         let fast_math_flags: c_uint = 0x1F; // This represents all flags set
         llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
         //LLVMSetFastMath(val);
-        LLVMBuildStore(llbuilder, val, dst);
+        &*LLVMBuildStore(NonNull::from(llbuilder).as_ptr(), val, dst);
     }
 
     pub unsafe fn store_jacobian(
@@ -740,7 +876,13 @@ impl<'ll> OsdiInstanceData<'ll> {
         val: &'ll llvm_sys::LLVMValue,
     ) {
         let field = if reactive { JACOBIAN_PTR_REACT } else { JACOBIAN_PTR_RESIST };
-        let ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, field, UNNAMED);
+        let ptr = LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            field,
+            UNNAMED,
+        );
         let zero = cx.const_int(0);
         let entry = if reactive {
             self.jacobian[entry].react_off.unwrap_unchecked().into()
@@ -749,15 +891,37 @@ impl<'ll> OsdiInstanceData<'ll> {
         };
         let entry = cx.const_unsigned_int(entry);
         let ty = if reactive { self.jacobian_ptr_react } else { self.jacobian_ptr };
-        let ptr = LLVMBuildGEP2(llbuilder, ty, ptr, [zero, entry].as_ptr(), 2, UNNAMED);
-        let dst = LLVMBuildLoad2(llbuilder, cx.ty_ptr(), ptr, UNNAMED);
-        let old = LLVMBuildLoad2(llbuilder, cx.ty_double(), dst, UNNAMED);
-        let val = LLVMBuildFAdd(llbuilder, old, val, UNNAMED);
+        let ptr = LLVMBuildGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(ty).as_ptr(),
+            ptr,
+            llvm_array_nonnull![zero, entry],
+            2,
+            UNNAMED,
+        );
+        let dst = LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.ty_ptr()).as_ptr(),
+            ptr,
+            UNNAMED,
+        );
+        let old = LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.ty_double()).as_ptr(),
+            dst,
+            UNNAMED,
+        );
+        let val = LLVMBuildFAdd(
+            NonNull::from(llbuilder).as_ptr(),
+            old,
+            NonNull::from(val).as_ptr(),
+            UNNAMED,
+        );
         let fast_math_flags: c_uint = 0x1F; // This represents all flags set
         llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
 
         //LLVMSetFastMath(val);
-        LLVMBuildStore(llbuilder, val, dst);
+        &*LLVMBuildStore(NonNull::from(llbuilder).as_ptr(), val, dst);
     }
 
     pub fn cache_slot_elem(&self, slot: CacheSlot) -> u32 {
@@ -771,7 +935,15 @@ impl<'ll> OsdiInstanceData<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> (&'ll llvm_sys::LLVMValue, &'ll llvm_sys::LLVMType) {
         let elem = self.cache_slot_elem(slot);
-        let ptr = unsafe { LLVMBuildStructGEP2(llbuilder, self.ty, ptr, elem, UNNAMED) };
+        let ptr = unsafe {
+            &*LLVMBuildStructGEP2(
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(self.ty).as_ptr(),
+                NonNull::from(ptr).as_ptr(),
+                elem,
+                UNNAMED,
+            )
+        };
         let ty = self.cache_slots[slot];
         (ptr, ty)
     }
@@ -784,14 +956,19 @@ impl<'ll> OsdiInstanceData<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         let (ptr, ty) = self.cache_slot_ptr(llbuilder, slot, ptr);
-        let mut val = LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED);
+        let mut val = &*LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            UNNAMED,
+        );
 
         if module.init.cache_slots[slot] == hir::Type::Bool {
-            val = LLVMBuildICmp(
-                llbuilder,
+            val = &*LLVMBuildICmp(
+                NonNull::from(llbuilder).as_ptr(),
                 LLVMIntPredicate::LLVMIntNE,
-                val,
-                LLVMConstInt(ty, 0, llvm::False),
+                NonNull::from(val).as_ptr(),
+                LLVMConstInt(NonNull::from(ty).as_ptr(), 0, 0),
                 UNNAMED,
             );
         }
@@ -809,9 +986,19 @@ impl<'ll> OsdiInstanceData<'ll> {
     ) {
         let (ptr, ty) = self.cache_slot_ptr(llbuilder, slot, ptr);
         if module.init.cache_slots[slot] == hir::Type::Bool {
-            val = LLVMBuildIntCast2(llbuilder, val, ty, llvm::False, UNNAMED);
+            val = &*LLVMBuildIntCast2(
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(val).as_ptr(),
+                NonNull::from(ty).as_ptr(),
+                0,
+                UNNAMED,
+            );
         }
-        LLVMBuildStore(llbuilder, val, ptr);
+        LLVMBuildStore(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(val).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+        );
     }
 
     pub unsafe fn store_is_collapsible(
@@ -821,16 +1008,26 @@ impl<'ll> OsdiInstanceData<'ll> {
         ptr: &'ll llvm_sys::LLVMValue,
         idx: &'ll llvm_sys::LLVMValue,
     ) {
-        let mut ptr = LLVMBuildStructGEP2(llbuilder, self.ty, ptr, COLLAPSED, UNNAMED);
+        let mut ptr = LLVMBuildStructGEP2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            COLLAPSED,
+            UNNAMED,
+        );
         ptr = LLVMBuildGEP2(
-            llbuilder,
-            self.collapsed,
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(self.collapsed).as_ptr(),
             ptr,
-            [cx.const_unsigned_int(0), idx].as_ptr(),
+            llvm_array_nonnull![cx.const_unsigned_int(0), idx],
             2,
             UNNAMED,
         );
-        LLVMBuildStore(llbuilder, cx.const_c_bool(true), ptr);
+        LLVMBuildStore(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(cx.const_c_bool(true)).as_ptr(),
+            ptr,
+        );
     }
 
     pub unsafe fn temperature_loc(
@@ -897,10 +1094,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                             model_data.param_ptr(param, model_ptr, llbuilder).unwrap()
                         }),
                     ParamKind::Temperature => (
-                        LLVMBuildStructGEP2(
-                            llbuilder,
-                            cx.ty_double(),
-                            inst_ptr,
+                        &*LLVMBuildStructGEP2(
+                            NonNull::from(llbuilder).as_ptr(),
+                            NonNull::from(cx.ty_double()).as_ptr(),
+                            NonNull::from(inst_ptr).as_ptr(),
                             TEMPERATURE,
                             UNNAMED,
                         ),
@@ -927,7 +1124,12 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             EvalOutput::Cache(slot) => inst_data.cache_slot_ptr(llbuilder, slot, inst_ptr),
         };
 
-        LLVMBuildLoad2(llbuilder, ty, ptr, UNNAMED)
+        &*LLVMBuildLoad2(
+            NonNull::from(llbuilder).as_ptr(),
+            NonNull::from(ty).as_ptr(),
+            NonNull::from(ptr).as_ptr(),
+            UNNAMED,
+        )
     }
 
     pub unsafe fn load_jacobian_entry(
@@ -958,7 +1160,11 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             }
             EvalOutput::Const(val, slot) => {
                 let (ptr, ty) = inst_data.eval_output_slot_ptr(llbuilder, inst_ptr, slot.unwrap());
-                LLVMBuildStore(llbuilder, cx.const_val(&val), ptr);
+                LLVMBuildStore(
+                    NonNull::from(llbuilder).as_ptr(),
+                    NonNull::from(cx.const_val(&val)).as_ptr(),
+                    NonNull::from(ptr).as_ptr(),
+                );
                 (ptr, ty)
             }
             EvalOutput::Param(param) => {
@@ -971,10 +1177,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                             model_data.param_ptr(param, model_ptr, llbuilder).unwrap()
                         }),
                     ParamKind::Temperature => (
-                        LLVMBuildStructGEP2(
-                            llbuilder,
-                            cx.ty_double(),
-                            inst_ptr,
+                        &*LLVMBuildStructGEP2(
+                            NonNull::from(llbuilder).as_ptr(),
+                            NonNull::from(cx.ty_double()).as_ptr(),
+                            NonNull::from(inst_ptr).as_ptr(),
                             TEMPERATURE,
                             UNNAMED,
                         ),

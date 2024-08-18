@@ -216,7 +216,10 @@ pub fn compile(
             llvm::LLVMSetInitializer(osdi_log, val);
             llvm::LLVMSetLinkage(osdi_log, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
             llvm::LLVMSetUnnamedAddress(osdi_log, llvm_sys::LLVMUnnamedAddr::LLVMNoUnnamedAddr);
-            llvm::LLVMSetDLLStorageClass(osdi_log, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
+            llvm::LLVMSetDLLStorageClass(
+                osdi_log,
+                llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass,
+            );
         }
 
         debug_assert!(llmod.verify_and_print());

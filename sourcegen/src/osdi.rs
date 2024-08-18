@@ -553,8 +553,8 @@ impl ToTokens for OsdiStructInterp<'_, '_> {
                     fn #llvm_ty_ident(&mut self){
                         let ctx = self.ctx;
                         unsafe{
-                            let align = [#(llvm::LLVMABIAlignmentOfType(self.target_data, #field_ll_tys)),*].into_iter().max().unwrap();
-                            let mut size = [#(llvm::LLVMABISizeOfType(self.target_data, #field_ll_tys2)),*].into_iter().max().unwrap() as u32;
+                            let align = [#(llvm_sys::target::LLVMABIAlignmentOfType(self.target_data, #field_ll_tys)),*].into_iter().max().unwrap();
+                            let mut size = [#(llvm_sys::target::LLVMABISizeOfType(self.target_data, #field_ll_tys2)),*].into_iter().max().unwrap() as u32;
                             size = (size + align - 1) / align;
                             let elem = ctx.ty_aint(align*8);
                             let ty = ctx.ty_array(elem, size);

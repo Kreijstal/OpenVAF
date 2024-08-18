@@ -1,11 +1,11 @@
 use std::mem::size_of;
 
+use core::ptr::NonNull;
 use llvm_sys::core::{
     LLVMBuildAnd, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildLoad2, LLVMBuildOr, LLVMBuildStore,
 };
 use llvm_sys::LLVMIntPredicate::{LLVMIntEQ, LLVMIntNE};
-use mir_llvm::{CodegenCx, MemLoc,UNNAMED};
-use core::ptr::NonNull;
+use mir_llvm::{CodegenCx, MemLoc, UNNAMED};
 type Word = u32;
 const WORD_BYTES: u32 = size_of::<Word>() as u32;
 const WORD_BITS: u32 = WORD_BYTES * 8;
@@ -33,24 +33,23 @@ pub unsafe fn word_ptr_and_mask<'ll>(
     let (idx, mask) = word_index_and_mask(pos);
     let zero = cx.const_int(0);
     let pos = cx.const_unsigned_int(idx);
-    
+
     // Create an array of pointers without casting
     let indices = [zero, pos];
-    
+
     let word_ptr = LLVMBuildGEP2(
         NonNull::from(llbuilder).as_ptr(),
         NonNull::from(arr_ty).as_ptr(),
         NonNull::from(arr_ptr).as_ptr(),
         indices.as_ptr() as *mut *mut _,
         2,
-        UNNAMED
+        UNNAMED,
     );
-    
+
     let mask = cx.const_unsigned_int(mask);
     // Convert the raw pointer back to a reference
     (unsafe { &*word_ptr }, mask)
 }
-
 
 pub unsafe fn is_set<'ll>(
     cx: &CodegenCx<'_, 'll>,
@@ -60,10 +59,26 @@ pub unsafe fn is_set<'ll>(
     llbuilder: &llvm_sys::LLVMBuilder,
 ) -> &'ll llvm_sys::LLVMValue {
     let (ptr, mask) = word_ptr_and_mask(cx, pos, arr_ptr, arr_ty, llbuilder);
-    let word = LLVMBuildLoad2(NonNull::from(llbuilder).as_ptr(), NonNull::from(cx.ty_int()).as_ptr(), NonNull::from(ptr).as_ptr(), UNNAMED);
-    let is_set = LLVMBuildAnd(NonNull::from(llbuilder).as_ptr(), word, NonNull::from(mask).as_ptr(), UNNAMED);
+    let word = LLVMBuildLoad2(
+        NonNull::from(llbuilder).as_ptr(),
+        NonNull::from(cx.ty_int()).as_ptr(),
+        NonNull::from(ptr).as_ptr(),
+        UNNAMED,
+    );
+    let is_set = LLVMBuildAnd(
+        NonNull::from(llbuilder).as_ptr(),
+        word,
+        NonNull::from(mask).as_ptr(),
+        UNNAMED,
+    );
     let zero = cx.const_int(0);
-    &*LLVMBuildICmp(NonNull::from(llbuilder).as_ptr(), LLVMIntNE, is_set, NonNull::from(zero).as_ptr(), UNNAMED)
+    &*LLVMBuildICmp(
+        NonNull::from(llbuilder).as_ptr(),
+        LLVMIntNE,
+        is_set,
+        NonNull::from(zero).as_ptr(),
+        UNNAMED,
+    )
 }
 
 pub unsafe fn set_bit<'ll>(
@@ -74,8 +89,14 @@ pub unsafe fn set_bit<'ll>(
     llbuilder: &llvm_sys::LLVMBuilder,
 ) {
     let (ptr, mask) = word_ptr_and_mask(cx, pos, arr_ptr, arr_ty, llbuilder);
-    let mut word = LLVMBuildLoad2(NonNull::from(llbuilder).as_ptr(), NonNull::from(cx.ty_int()).as_ptr(), NonNull::from(ptr).as_ptr(), UNNAMED);
-    word = LLVMBuildOr(NonNull::from(llbuilder).as_ptr(), word, NonNull::from(mask).as_ptr(), UNNAMED);
+    let mut word = LLVMBuildLoad2(
+        NonNull::from(llbuilder).as_ptr(),
+        NonNull::from(cx.ty_int()).as_ptr(),
+        NonNull::from(ptr).as_ptr(),
+        UNNAMED,
+    );
+    word =
+        LLVMBuildOr(NonNull::from(llbuilder).as_ptr(), word, NonNull::from(mask).as_ptr(), UNNAMED);
     LLVMBuildStore(NonNull::from(llbuilder).as_ptr(), word, NonNull::from(ptr).as_ptr());
 }
 
@@ -104,8 +125,21 @@ pub unsafe fn is_flag_set<'ll>(
     llbuilder: &llvm_sys::LLVMBuilder,
 ) -> &'ll llvm_sys::LLVMValue {
     let mask = cx.const_unsigned_int(flag);
-    let bits = LLVMBuildAnd(NonNull::from(llbuilder).as_ptr(), NonNull::from(mask).as_ptr(), NonNull::from(val).as_ptr(), UNNAMED);
-    unsafe { &*LLVMBuildICmp(NonNull::from(llbuilder).as_ptr(), LLVMIntNE, bits, NonNull::from(cx.const_int(0)).as_ptr(), UNNAMED) }
+    let bits = LLVMBuildAnd(
+        NonNull::from(llbuilder).as_ptr(),
+        NonNull::from(mask).as_ptr(),
+        NonNull::from(val).as_ptr(),
+        UNNAMED,
+    );
+    unsafe {
+        &*LLVMBuildICmp(
+            NonNull::from(llbuilder).as_ptr(),
+            LLVMIntNE,
+            bits,
+            NonNull::from(cx.const_int(0)).as_ptr(),
+            UNNAMED,
+        )
+    }
 }
 
 pub unsafe fn is_flag_unset<'ll>(
@@ -115,6 +149,19 @@ pub unsafe fn is_flag_unset<'ll>(
     llbuilder: &llvm_sys::LLVMBuilder,
 ) -> &'ll llvm_sys::LLVMValue {
     let mask = cx.const_unsigned_int(flag);
-    let bits = LLVMBuildAnd(NonNull::from(llbuilder).as_ptr(), NonNull::from(mask).as_ptr(), NonNull::from(val).as_ptr(), UNNAMED);
-    unsafe { &*LLVMBuildICmp(NonNull::from(llbuilder).as_ptr(), LLVMIntEQ, bits, NonNull::from(cx.const_int(0)).as_ptr(), UNNAMED) }
+    let bits = LLVMBuildAnd(
+        NonNull::from(llbuilder).as_ptr(),
+        NonNull::from(mask).as_ptr(),
+        NonNull::from(val).as_ptr(),
+        UNNAMED,
+    );
+    unsafe {
+        &*LLVMBuildICmp(
+            NonNull::from(llbuilder).as_ptr(),
+            LLVMIntEQ,
+            bits,
+            NonNull::from(cx.const_int(0)).as_ptr(),
+            UNNAMED,
+        )
+    }
 }
