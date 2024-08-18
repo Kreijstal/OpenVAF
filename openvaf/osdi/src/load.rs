@@ -51,7 +51,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
         unsafe {
             let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
-            let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
+            let llbuilder = LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
             LLVMPositionBuilderAtEnd(llbuilder, entry);
             let inst = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
             let model = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1);
