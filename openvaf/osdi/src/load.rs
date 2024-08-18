@@ -61,16 +61,16 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             for (i, (src, eval_outputs)) in
                 zip(&module.dae_system.noise_sources, &self.inst_data.noise).enumerate()
             {
-                let fac = self.load_eval_output(eval_outputs.factor, inst, model, llbuilder);
+                let fac = self.load_eval_output(eval_outputs.factor, &*inst, &*model, &*llbuilder);
                 let mut pwr = match src.kind {
                     NoiseSourceKind::WhiteNoise { .. } => {
-                        self.load_eval_output(eval_outputs.args[0], inst, model, llbuilder)
+                        self.load_eval_output(eval_outputs.args[0], &*inst, &*model, &*llbuilder)
                     }
                     NoiseSourceKind::FlickerNoise { .. } => {
                         let mut pwr =
-                            self.load_eval_output(eval_outputs.args[0], inst, model, llbuilder);
+                            self.load_eval_output(eval_outputs.args[0], &*inst, &*model, &*llbuilder);
                         let exp =
-                            self.load_eval_output(eval_outputs.args[1], inst, model, llbuilder);
+                            self.load_eval_output(eval_outputs.args[1], &*inst, &*model, &*llbuilder);
                         let (ty, fun) = self
                             .cx
                             .intrinsic("llvm.pow.f64")
