@@ -21,7 +21,13 @@ use crate::metadata::osdi_0_3::{
 };
 use crate::metadata::OsdiLimFunction;
 use crate::OsdiLimId;
-
+use core::ptr::NonNull;
+macro_rules! llvm_array_nonnull {
+    ($($element:expr),+ $(,)?) => {{
+        let mut temp = [$(core::ptr::NonNull::from($element).as_ptr()),+];
+        temp.as_mut_ptr()
+    }};
+}
 impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
     pub fn eval_prototype(&self) -> &'ll llvm_sys::LLVMValue {
         let name = &format!("eval_{}", &self.module.sym);
@@ -42,10 +48,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
         let mut builder = Builder::new(cx, func, llfunc);
 
-        let handle = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 0) };
-        let instance = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 1) };
-        let model = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 2) };
-        let sim_info = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 3) };
+        let handle = unsafe { &*llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0) };
+        let instance = unsafe { &*llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1) };
+        let model = unsafe { &*llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2) };
+        let sim_info = unsafe { &*llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 3) };
         let sim_info_ty = self.tys.osdi_sim_info;
 
         // let simparam_ty = self.tys.osdi_sim_paras;
@@ -118,7 +124,12 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                             let hi = get_prev_solve(SimUnknownKind::KirchoffLaw(hi));
                             if let Some(lo) = lo {
                                 let lo = get_prev_solve(SimUnknownKind::KirchoffLaw(lo));
-                                llvm::LLVMBuildFSub(builder.llbuilder, hi, lo, UNNAMED)
+                                &*llvm_sys::core::LLVMBuildFSub(
+                                    NonNull::from(builder.llbuilder).as_ptr(),
+                                    NonNull::from(hi).as_ptr(),
+                                    NonNull::from(lo).as_ptr(),
+                                    UNNAMED,
+                                )
                             } else {
                                 hi
                             }
@@ -189,7 +200,12 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                                 is_flag_set(cx, CALC_REACT_JACOBIAN, flags, builder.llbuilder);
                             let is_not_ic =
                                 is_flag_unset(cx, ANALYSIS_IC, flags, builder.llbuilder);
-                            LLVMBuildAnd(builder.llbuilder, is_not_dc, is_not_ic, UNNAMED)
+                            &*LLVMBuildAnd(
+                                NonNull::from(builder.llbuilder).as_ptr(),
+                                NonNull::from(is_not_dc).as_ptr(),
+                                NonNull::from(is_not_ic).as_ptr(),
+                                UNNAMED,
+                            )
                         }
                         ParamKind::PrevState(state) => {
                             let idx =
@@ -348,11 +364,19 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         store_val: &dyn Fn(&Builder<'_, '_, 'll>),
     ) {
         let cx = builder.cx;
-        let bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-        let next_bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
+        let bb = LLVMAppendBasicBlockInContext(
+            NonNull::from(cx.llcx).as_ptr(),
+            NonNull::from(llfunc).as_ptr(),
+            UNNAMED,
+        );
+        let next_bb = LLVMAppendBasicBlockInContext(
+            NonNull::from(cx.llcx).as_ptr(),
+            NonNull::from(llfunc).as_ptr(),
+            UNNAMED,
+        );
 
         let is_set = is_flag_set_mem(cx, flag, flags, builder.llbuilder);
-        LLVMBuildCondBr(builder.llbuilder, is_set, bb, next_bb);
+        LLVMBuildCondBr(builder.llbuilder, NonNull::from(is_set).as_ptr(), bb, next_bb);
 
         LLVMPositionBuilderAtEnd(builder.llbuilder, bb);
         store_val(builder);
@@ -382,65 +406,116 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let llfunc = cx.declare_int_fn(name, fun_ty);
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let exit = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let val_changed_bb = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
-            LLVMPositionBuilderAtEnd(llbuilder, entry);
+            let entry = LLVMAppendBasicBlockInContext(
+                NonNull::from(cx.llcx).as_ptr(),
+                NonNull::from(llfunc).as_ptr(),
+                UNNAMED,
+            );
+            let exit = LLVMAppendBasicBlockInContext(
+                NonNull::from(cx.llcx).as_ptr(),
+                NonNull::from(llfunc).as_ptr(),
+                UNNAMED,
+            );
+            let val_changed_bb = LLVMAppendBasicBlockInContext(
+                NonNull::from(cx.llcx).as_ptr(),
+                NonNull::from(llfunc).as_ptr(),
+                UNNAMED,
+            );
+            let llbuilder = &*LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
+            LLVMPositionBuilderAtEnd(NonNull::from(llbuilder).as_ptr(), entry);
 
-            let mut flags = LLVMGetParam(llfunc, 0);
-            flags = flags_loc.read_with_ptr(llbuilder, flags);
+            let mut flags = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
+            flags = &*flags_loc
+                .read_with_ptr(NonNull::from(llbuilder).as_ptr(), NonNull::from(flags).as_ptr());
             let mut init = is_flag_set(cx, INIT_LIM, flags, llbuilder);
-            init = LLVMBuildIntCast2(llbuilder, init, c_bool, llvm::False, UNNAMED);
+            init = &*LLVMBuildIntCast2(
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(init).as_ptr(),
+                NonNull::from(c_bool).as_ptr(),
+                0,
+                UNNAMED,
+            );
 
-            let mut val_changed = LLVMBuildAlloca(llbuilder, c_bool, UNNAMED);
-            LLVMBuildStore(llbuilder, cx.const_c_bool(false), val_changed);
+            let mut val_changed = LLVMBuildAlloca(
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(c_bool).as_ptr(),
+                UNNAMED,
+            );
+            LLVMBuildStore(
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(cx.const_c_bool(false)).as_ptr(),
+                val_changed,
+            );
 
             let func_ptr_ptr = LLVMBuildInBoundsGEP2(
-                llbuilder,
-                tys.osdi_lim_function,
-                table,
-                [cx.const_unsigned_int(id.into()), cx.const_int(2)].as_ptr(),
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(tys.osdi_lim_function).as_ptr(),
+                NonNull::from(table).as_ptr(),
+                llvm_array_nonnull![cx.const_unsigned_int(id.into()), cx.const_int(2)],
                 2,
                 UNNAMED,
             );
 
-            let func_ptr = LLVMBuildLoad2(llbuilder, cx.ty_ptr(), func_ptr_ptr, UNNAMED);
+            let func_ptr = LLVMBuildLoad2(
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(cx.ty_ptr()).as_ptr(),
+                func_ptr_ptr,
+                UNNAMED,
+            );
             let mut lim_fn_args = vec![c_bool, cx.ty_ptr(), double, double];
             lim_fn_args.extend((0..num_args).map(|_| double));
             let lim_fn_ty = cx.ty_func(&lim_fn_args, double);
-            let mut args = vec![init, val_changed];
-            args.extend((2..4 + num_args).map(|i| LLVMGetParam(llfunc, i)));
+            let mut args = vec![init, &*val_changed];
+            args.extend(
+                (2..4 + num_args).map(|i| &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), i)),
+            );
+            let mut raw_args: Vec<*mut llvm_sys::LLVMValue> =
+                args.iter().map(|&arg| arg as *const _ as *mut _).collect();
             let res = LLVMBuildCall2(
-                llbuilder,
-                lim_fn_ty,
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(lim_fn_ty).as_ptr(),
                 func_ptr,
-                args.as_ptr(),
+                raw_args.as_mut_ptr(),
                 args.len() as u32,
                 UNNAMED,
             );
 
-            val_changed = LLVMBuildLoad2(llbuilder, c_bool, val_changed, UNNAMED);
-            val_changed =
-                LLVMBuildICmp(llbuilder, LLVMIntNE, val_changed, cx.const_c_bool(false), UNNAMED);
-            LLVMBuildCondBr(llbuilder, val_changed, val_changed_bb, exit);
-
-            LLVMPositionBuilderAtEnd(llbuilder, val_changed_bb);
-            let ret_flags_ptr = LLVMGetParam(llfunc, 1);
-            let mut ret_flags = LLVMBuildLoad2(llbuilder, int, ret_flags_ptr, UNNAMED);
-            ret_flags = LLVMBuildOr(
-                llbuilder,
-                ret_flags,
-                cx.const_unsigned_int(EVAL_RET_FLAG_LIM),
+            val_changed = LLVMBuildLoad2(
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(c_bool).as_ptr(),
+                val_changed,
                 UNNAMED,
             );
-            LLVMBuildStore(llbuilder, ret_flags, ret_flags_ptr);
-            LLVMBuildBr(llbuilder, exit);
+            val_changed = LLVMBuildICmp(
+                NonNull::from(llbuilder).as_ptr(),
+                LLVMIntNE,
+                val_changed,
+                NonNull::from(cx.const_c_bool(false)).as_ptr(),
+                UNNAMED,
+            );
+            LLVMBuildCondBr(NonNull::from(llbuilder).as_ptr(), val_changed, val_changed_bb, exit);
 
-            LLVMPositionBuilderAtEnd(llbuilder, exit);
-            LLVMBuildRet(llbuilder, res);
+            LLVMPositionBuilderAtEnd(NonNull::from(llbuilder).as_ptr(), val_changed_bb);
+            let ret_flags_ptr = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1);
+            let mut ret_flags = LLVMBuildLoad2(
+                NonNull::from(llbuilder).as_ptr(),
+                NonNull::from(int).as_ptr(),
+                ret_flags_ptr,
+                UNNAMED,
+            );
+            ret_flags = LLVMBuildOr(
+                NonNull::from(llbuilder).as_ptr(),
+                ret_flags,
+                NonNull::from(cx.const_unsigned_int(EVAL_RET_FLAG_LIM)).as_ptr(),
+                UNNAMED,
+            );
+            LLVMBuildStore(NonNull::from(llbuilder).as_ptr(), ret_flags, ret_flags_ptr);
+            LLVMBuildBr(NonNull::from(llbuilder).as_ptr(), exit);
 
-            LLVMDisposeBuilder(llbuilder);
+            LLVMPositionBuilderAtEnd(NonNull::from(llbuilder).as_ptr(), exit);
+            LLVMBuildRet(NonNull::from(llbuilder).as_ptr(), res);
+
+            LLVMDisposeBuilder(NonNull::from(llbuilder).as_ptr());
         }
 
         CallbackFun {

@@ -1,15 +1,5 @@
 use std::iter::once;
 
-use hir::{CompilationDB, ParamSysFun, Type};
-use hir_lower::CurrentKind;
-use lasso::{Rodeo, Spur};
-use llvm_sys::target::{LLVMABISizeOfType, LLVMOffsetOfElement, LLVMTargetDataRef};
-use mir::{ValueDef, F_ZERO};
-use mir_llvm::CodegenCx;
-use sim_back::dae::MatrixEntry;
-use sim_back::SimUnknownKind;
-use smol_str::SmolStr;
-
 use crate::compilation_unit::{OsdiCompilationUnit, OsdiModule};
 use crate::inst_data::{
     OsdiInstanceParam, COLLAPSED, JACOBIAN_PTR_REACT, JACOBIAN_PTR_RESIST, NODE_MAPPING, STATE_IDX,
@@ -22,6 +12,16 @@ use crate::metadata::osdi_0_3::{
     PARA_TY_REAL, PARA_TY_STR,
 };
 use crate::ty_len;
+use core::ptr::NonNull;
+use hir::{CompilationDB, ParamSysFun, Type};
+use hir_lower::CurrentKind;
+use lasso::{Rodeo, Spur};
+use llvm_sys::target::{LLVMABISizeOfType, LLVMOffsetOfElement, LLVMTargetDataRef};
+use mir::{ValueDef, F_ZERO};
+use mir_llvm::CodegenCx;
+use sim_back::dae::MatrixEntry;
+use sim_back::SimUnknownKind;
+use smol_str::SmolStr;
 
 #[allow(unused_parens, dead_code)]
 pub mod osdi_0_3;
@@ -187,8 +187,13 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
     pub fn jacobian_entries(&self, target_data: &LLVMTargetDataRef) -> Vec<OsdiJacobianEntry> {
         let OsdiCompilationUnit { inst_data, module, .. } = self;
-        let mut jacobian_ptr_react_offset =
-            unsafe { LLVMOffsetOfElement(*target_data, NonNull::from(inst_data.ty).as_ptr(), JACOBIAN_PTR_REACT) } as u32;
+        let mut jacobian_ptr_react_offset = unsafe {
+            LLVMOffsetOfElement(
+                *target_data,
+                NonNull::from(inst_data.ty).as_ptr(),
+                JACOBIAN_PTR_REACT,
+            )
+        } as u32;
 
         module
             .dae_system

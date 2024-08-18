@@ -25,6 +25,7 @@ pub fn stdlib_bitcode(target: &target::spec::Target) -> &'static [u8] {
         triple => unreachable!("unknown target triple {triple}"),
     }
 }
+use core::ptr::NonNull;
 pub const OSDI_VERSION_MAJOR_CURR: u32 = 0;
 pub const OSDI_VERSION_MINOR_CURR: u32 = 3;
 pub const PARA_TY_MASK: u32 = 3;
@@ -128,11 +129,11 @@ impl OsdiTyBuilder<'_, '_, '_> {
     fn osdi_init_error_payload(&mut self) {
         let ctx = self.ctx;
         unsafe {
-            let align = [llvm::LLVMABIAlignmentOfType(self.target_data, ctx.ty_int())]
+            let align = [llvm_sys::target::LLVMABIAlignmentOfType(self.target_data, NonNull::from(ctx.ty_int()).as_ptr(),)]
                 .into_iter()
                 .max()
                 .unwrap();
-            let mut size = [llvm::LLVMABISizeOfType(self.target_data, ctx.ty_int())]
+            let mut size = [llvm_sys::target::LLVMABISizeOfType(self.target_data, NonNull::from(ctx.ty_int()).as_ptr(),)]
                 .into_iter()
                 .max()
                 .unwrap() as u32;
