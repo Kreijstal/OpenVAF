@@ -53,10 +53,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
             let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
             LLVMPositionBuilderAtEnd(llbuilder, entry);
-            let inst = LLVMGetParam(llfunc, 0);
-            let model = LLVMGetParam(llfunc, 1);
-            let freq = LLVMGetParam(llfunc, 2);
-            let dst = LLVMGetParam(llfunc, 3);
+            let inst = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
+            let model = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1);
+            let freq = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2);
+            let dst = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 3);
 
             for (i, (src, eval_outputs)) in
                 zip(&module.dae_system.noise_sources, &self.inst_data.noise).enumerate()
