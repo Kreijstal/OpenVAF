@@ -332,20 +332,20 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                 Self::build_store_results(&builder, llfunc, &flags, lim_rhs_flag, &store_lim_rhs);
             }
 
-            let store_opvars = |builder: &Builder<'_, '_, 'll>| {
+            let store_opvars = |builder: &mut Builder<'_, '_, 'll>| {
                 for (_, &eval_output) in &inst_data.opvars {
                     inst_data.store_eval_output(eval_output, instance, builder)
                 }
             };
-            Self::build_store_results(&builder, llfunc, &flags, CALC_OP, &store_opvars);
-            let store_noise = |builder: &Builder<'_, '_, 'll>| {
+            Self::build_store_results(&mut builder, llfunc, &flags, CALC_OP, &store_opvars);
+            let store_noise = |builder: &mut Builder<'_, '_, 'll>| {
                 for source in &inst_data.noise {
                     for eval_output in source.eval_outputs() {
                         inst_data.store_eval_output(eval_output, instance, builder)
                     }
                 }
             };
-            Self::build_store_results(&builder, llfunc, &flags, CALC_NOISE, &store_noise);
+            Self::build_store_results(&mut builder, llfunc, &flags, CALC_NOISE, &store_noise);
 
             inst_data.store_bound_step(instance, &builder);
 
