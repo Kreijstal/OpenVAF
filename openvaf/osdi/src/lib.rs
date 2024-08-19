@@ -68,7 +68,7 @@ pub fn compile(
 
     let target_data = unsafe {
         let src = CString::new(target.data_layout.clone()).unwrap();
-        llvm_sys::target::LLVMCreateTargetData(src.as_ptr())
+        &*llvm_sys::target::LLVMCreateTargetData(src.as_ptr())
     };
 
     let modules: Vec<_> = modules
@@ -87,16 +87,17 @@ pub fn compile(
     rayon_core::scope(|scope| {
         let db = db;
         let literals_ = &literals;
-        let target_data_ = &target_data;
+        let mut target_data_ =  target_data;
         let paths = &paths;
 
         for (i, module) in modules.iter().enumerate() {
             let _db = db.snapshot();
+            unsafe{
             scope.spawn(move |_| {
                 let access = format!("access_{}", &module.sym);
                 let llmod = unsafe { back.new_module(&access, opt_lvl).unwrap() };
                 let cx = new_codegen(back, &llmod, literals_);
-                let tys = OsdiTys::new(&cx, target_data_);
+                let tys = OsdiTys::new(&cx, NonNull::from(target_data_).as_ptr());
                 let cguint = OsdiCompilationUnit::new(&_db, module, &cx, &tys, false);
 
                 cguint.access_function();
@@ -107,14 +108,14 @@ pub fn compile(
                     llmod.optimize();
                     assert_eq!(llmod.emit_object(path.as_ref()), Ok(()))
                 }
-            });
+            });}
 
             let _db = db.snapshot();
             scope.spawn(move |_| {
                 let name = format!("setup_model_{}", &module.sym);
                 let llmod = unsafe { back.new_module(&name, opt_lvl).unwrap() };
                 let cx = new_codegen(back, &llmod, literals_);
-                let tys = OsdiTys::new(&cx, target_data_);
+                let tys = OsdiTys::new(&cx, NonNull::from(target_data_).as_ptr());
                 let cguint = OsdiCompilationUnit::new(&_db, module, &cx, &tys, false);
 
                 cguint.setup_model();
@@ -132,7 +133,7 @@ pub fn compile(
                 let name = format!("setup_instance_{}", &module.sym);
                 let llmod = unsafe { back.new_module(&name, opt_lvl).unwrap() };
                 let cx = new_codegen(back, &llmod, literals_);
-                let tys = OsdiTys::new(&cx, target_data_);
+                let tys = OsdiTys::new(&cx, NonNull::from(target_data_).as_ptr());
                 let mut cguint = OsdiCompilationUnit::new(&_db, module, &cx, &tys, false);
 
                 cguint.setup_instance();
@@ -150,7 +151,7 @@ pub fn compile(
                 let access = format!("eval_{}", &module.sym);
                 let llmod = unsafe { back.new_module(&access, opt_lvl).unwrap() };
                 let cx = new_codegen(back, &llmod, literals_);
-                let tys = OsdiTys::new(&cx, target_data_);
+                let tys = OsdiTys::new(&cx, NonNull::from(target_data_).as_ptr());
                 let cguint = OsdiCompilationUnit::new(&_db, module, &cx, &tys, true);
 
                 // println!("{:?}", module.eval);
@@ -168,13 +169,13 @@ pub fn compile(
 
         let llmod = unsafe { back.new_module(&name, opt_lvl).unwrap() };
         let cx = new_codegen(back, &llmod, &literals);
-        let tys = OsdiTys::new(&cx, &target_data);
+        let tys = OsdiTys::new(&cx, NonNull::from(target_data).as_ptr());
 
         let descriptors: Vec<_> = modules
             .iter()
             .map(|module| {
                 let cguint = OsdiCompilationUnit::new(&db, module, &cx, &tys, false);
-                let descriptor = cguint.descriptor(&target_data, &db);
+                let descriptor = cguint.descriptor(&NonNull::from(target_data).as_ptr(), &db);
                 descriptor.to_ll_val(&cx, &tys)
             })
             .collect();
@@ -234,7 +235,7 @@ pub fn compile(
     });
 
     paths.push(main_file);
-    unsafe { LLVMDisposeTargetData(target_data) };
+    unsafe { LLVMDisposeTargetData(NonNull::from(target_data).as_ptr()) };
     paths
 }
 
