@@ -1,16 +1,21 @@
+use crate::compilation_unit::OsdiCompilationUnit;
+use core::ffi::c_uint;
 use llvm_sys::core::{
     LLVMAppendBasicBlockInContext, LLVMBuildCall2, LLVMBuildFAdd, LLVMBuildFDiv, LLVMBuildFMul,
     LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildRetVoid, LLVMBuildStore, LLVMCreateBuilderInContext,
     LLVMDisposeBuilder, LLVMGetParam, LLVMPositionBuilderAtEnd,
 };
-use std::ptr::NonNull;
 use mir_llvm::UNNAMED;
 use sim_back::dae::NoiseSourceKind;
+use std::ptr::NonNull;
 use stdx::iter::zip;
 use typed_index_collections::TiVec;
-
-use crate::compilation_unit::OsdiCompilationUnit;
-
+macro_rules! llvm_array_nonnull {
+    ($($element:expr),+ $(,)?) => {{
+        let mut temp = [$(core::ptr::NonNull::from($element).as_ptr()),+];
+        temp.as_mut_ptr()
+    }};
+}
 #[derive(Debug, Clone, Copy)]
 pub enum JacobianLoadType {
     Tran,
@@ -50,12 +55,16 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let llfunc = cx.declare_int_c_fn(name, fun_ty);
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let entry = LLVMAppendBasicBlockInContext(
+                NonNull::from(cx.llcx).as_ptr(),
+                NonNull::from(llfunc).as_ptr(),
+                UNNAMED,
+            );
             let llbuilder = LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
             LLVMPositionBuilderAtEnd(llbuilder, entry);
             let inst = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
             let model = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1);
-            let freq = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2);
+            let freq = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2);
             let dst = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 3);
 
             for (i, (src, eval_outputs)) in
@@ -67,34 +76,76 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                         self.load_eval_output(eval_outputs.args[0], &*inst, &*model, &*llbuilder)
                     }
                     NoiseSourceKind::FlickerNoise { .. } => {
-                        let mut pwr =
-                            self.load_eval_output(eval_outputs.args[0], &*inst, &*model, &*llbuilder);
-                        let exp =
-                            self.load_eval_output(eval_outputs.args[1], &*inst, &*model, &*llbuilder);
+                        let mut pwr = self.load_eval_output(
+                            eval_outputs.args[0],
+                            &*inst,
+                            &*model,
+                            &*llbuilder,
+                        );
+                        let exp = &*self.load_eval_output(
+                            eval_outputs.args[1],
+                            &*inst,
+                            &*model,
+                            &*llbuilder,
+                        );
                         let (ty, fun) = self
                             .cx
                             .intrinsic("llvm.pow.f64")
                             .unwrap_or_else(|| unreachable!("intrinsic {} not found", name));
-                        let freq_exp =
-                            LLVMBuildCall2(llbuilder, ty, fun, [freq, exp].as_ptr(), 2, UNNAMED);
-                        LLVMSetPartialFastMath(freq_exp);
-                        pwr = LLVMBuildFDiv(llbuilder, pwr, freq_exp, UNNAMED);
-                        LLVMSetFastMath(pwr);
+                        let freq_exp = LLVMBuildCall2(
+                            llbuilder,
+                            NonNull::from(ty).as_ptr(),
+                            NonNull::from(fun).as_ptr(),
+                            llvm_array_nonnull![freq, &*exp],
+                            2,
+                            UNNAMED,
+                        );
+                        let fast_math_flags: c_uint = 0x01 | 0x02 | 0x10; // Reassoc | Reciprocal | Contract
+                        unsafe {
+                            llvm_sys::core::LLVMSetFastMathFlags(freq_exp, fast_math_flags);
+                        }
+
+                        pwr = &*LLVMBuildFDiv(
+                            llbuilder,
+                            NonNull::from(pwr).as_ptr(),
+                            freq_exp,
+                            UNNAMED,
+                        );
+                        let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+                        unsafe {
+                            llvm_sys::core::LLVMSetFastMathFlags(
+                                NonNull::from(pwr).as_ptr(),
+                                fast_math_flags,
+                            );
+                        }
+
                         pwr
                     }
                     NoiseSourceKind::NoiseTable { .. } => unimplemented!("noise tables"),
                 };
-                pwr = LLVMBuildFMul(llbuilder, pwr, fac, UNNAMED);
-                LLVMSetFastMath(pwr);
+                pwr = &*LLVMBuildFMul(
+                    llbuilder,
+                    NonNull::from(pwr).as_ptr(),
+                    NonNull::from(fac).as_ptr(),
+                    UNNAMED,
+                );
+                let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+                unsafe {
+                    llvm_sys::core::LLVMSetFastMathFlags(
+                        NonNull::from(pwr).as_ptr(),
+                        fast_math_flags,
+                    );
+                }
+
                 let dst = LLVMBuildGEP2(
                     llbuilder,
-                    cx.ty_double(),
+                    NonNull::from(cx.ty_double()).as_ptr(),
                     dst,
-                    [cx.const_unsigned_int(i as u32)].as_ptr(),
+                    llvm_array_nonnull![cx.const_unsigned_int(i as u32)],
                     1,
                     UNNAMED,
                 );
-                LLVMBuildStore(llbuilder, pwr, dst);
+                LLVMBuildStore(llbuilder, NonNull::from(pwr).as_ptr(), dst);
             }
 
             // TODO noise
@@ -114,18 +165,22 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let llfunc = cx.declare_int_c_fn(name, fun_ty);
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
-            let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
+            let entry = LLVMAppendBasicBlockInContext(
+                NonNull::from(cx.llcx).as_ptr(),
+                NonNull::from(llfunc).as_ptr(),
+                UNNAMED,
+            );
+            let llbuilder = LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
 
             LLVMPositionBuilderAtEnd(llbuilder, entry);
 
             // get params
-            let inst = LLVMGetParam(llfunc, 0);
-            let dst = LLVMGetParam(llfunc, 2);
+            let inst = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
+            let dst = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2);
 
             for node in module.dae_system.unknowns.indices() {
-                if let Some(contrib) = inst_data.read_residual(node, inst, llbuilder, reactive) {
-                    inst_data.store_contrib(cx, node, inst, dst, contrib, llbuilder, false);
+                if let Some(contrib) = inst_data.read_residual(node, inst, &*llbuilder, reactive) {
+                    inst_data.store_contrib(cx, node, inst, dst, contrib, &*llbuilder, false);
                 }
             }
 
@@ -146,18 +201,22 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let llfunc = cx.declare_int_c_fn(name, fun_ty);
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
+            let entry = LLVMAppendBasicBlockInContext(
+                NonNull::from(cx.llcx).as_ptr(),
+                NonNull::from(llfunc).as_ptr(),
+                UNNAMED,
+            );
+            let llbuilder = LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
 
             LLVMPositionBuilderAtEnd(llbuilder, entry);
 
             // get params
-            let inst = LLVMGetParam(llfunc, 0);
-            let dst = LLVMGetParam(llfunc, 2);
+            let inst = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
+            let dst = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2);
 
             for node in module.dae_system.unknowns.indices() {
-                if let Some(contrib) = inst_data.read_lim_rhs(node, inst, llbuilder, reactive) {
-                    inst_data.store_contrib(cx, node, inst, dst, contrib, llbuilder, true);
+                if let Some(contrib) = inst_data.read_lim_rhs(node, inst, &*llbuilder, reactive) {
+                    inst_data.store_contrib(cx, node, inst, dst, contrib, &*llbuilder, true);
                 }
             }
 
@@ -201,12 +260,26 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                     let voltage = self
                         .inst_data
                         .read_node_voltage(self.cx, node_deriv, inst, prev_solve, llbuilder);
-                    let val = LLVMBuildFMul(llbuilder, ddx, voltage, UNNAMED);
-                    LLVMSetFastMath(val);
+                    let val = LLVMBuildFMul(
+                        NonNull::from(llbuilder).as_ptr(),
+                        NonNull::from(ddx).as_ptr(),
+                        NonNull::from(voltage).as_ptr(),
+                        UNNAMED,
+                    );
+                    let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+                    unsafe {
+                        llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
+                    }
+
                     res = match res {
                         Some(old) => {
-                            let val = LLVMBuildFAdd(llbuilder, old, val, UNNAMED);
-                            LLVMSetFastMath(val);
+                            let val =
+                                LLVMBuildFAdd(NonNull::from(llbuilder).as_ptr(), old, val, UNNAMED);
+                            let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+                            unsafe {
+                                llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
+                            }
+
                             Some(val)
                         }
                         None => Some(val),
@@ -217,24 +290,30 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                 if !tran {
                     if let Some(contrib) = inst_data.read_residual(node, inst, llbuilder, false) {
                         let val = LLVMBuildFSub(
-                            llbuilder,
-                            res.unwrap_or_else(|| cx.const_real(0.0)),
-                            contrib,
+                            NonNull::from(llbuilder).as_ptr(),
+                            res.unwrap_or_else(|| NonNull::from(cx.const_real(0.0)).as_ptr()),
+                            NonNull::from(contrib).as_ptr(),
                             UNNAMED,
                         );
-                        LLVMSetFastMath(val);
+                        let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+                        unsafe {
+                            llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
+                        }
                         res = Some(val);
                     }
                 }
                 if let Some(mut res) = res {
                     if let Some(lim_rhs) = inst_data.read_lim_rhs(node, inst, llbuilder, tran) {
-                        res = LLVMBuildFAdd(llbuilder, res, lim_rhs, UNNAMED);
+                        res = LLVMBuildFAdd(NonNull::from(llbuilder).as_ptr(), res, NonNull::from(lim_rhs).as_ptr(), UNNAMED);
                     }
                     if tran {
-                        res = LLVMBuildFMul(llbuilder, res, alpha, UNNAMED);
-                        LLVMSetFastMath(res);
+                        res = LLVMBuildFMul(NonNull::from(llbuilder).as_ptr(), res, NonNull::from(alpha).as_ptr(), UNNAMED);
+                        let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+                        unsafe {
+                            llvm_sys::core::LLVMSetFastMathFlags(res, fast_math_flags);
+                        }
                     }
-                    inst_data.store_contrib(cx, node, inst, dst, res, llbuilder, false);
+                    inst_data.store_contrib(cx, node, inst, dst, &*res, llbuilder, false);
                 }
             }
         }
@@ -253,20 +332,20 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let llfunc = cx.declare_int_c_fn(name, fun_ty);
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
+            let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let llbuilder = LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
             LLVMPositionBuilderAtEnd(llbuilder, entry);
 
             // get params
-            let inst = LLVMGetParam(llfunc, 0);
-            let model = LLVMGetParam(llfunc, 1);
-            let dst = LLVMGetParam(llfunc, 2);
-            let prev_solve = LLVMGetParam(llfunc, 3);
-            let alpha = if tran { LLVMGetParam(llfunc, 4) } else { prev_solve };
+            let inst = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
+            let model = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1);
+            let dst = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2);
+            let prev_solve = &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 3);
+            let alpha = if tran { &*LLVMGetParam(NonNull::from(llfunc).as_ptr(), 4) } else { prev_solve };
 
-            self.load_spice_rhs_(false, llbuilder, inst, model, dst, prev_solve, alpha);
+            self.load_spice_rhs_(false, &*llbuilder, inst, model, dst, prev_solve, alpha);
             if tran {
-                self.load_spice_rhs_(true, llbuilder, inst, model, dst, prev_solve, alpha);
+                self.load_spice_rhs_(true, &*llbuilder, inst, model, dst, prev_solve, alpha);
             }
 
             LLVMBuildRetVoid(llbuilder);
@@ -285,32 +364,40 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let llfunc = cx.declare_int_c_fn(name, fun_ty);
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
+            let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let llbuilder = LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
 
             LLVMPositionBuilderAtEnd(llbuilder, entry);
             // get params
-            let inst = LLVMGetParam(llfunc, 0);
-            let model = LLVMGetParam(llfunc, 1);
-            let alpha = if kind.read_reactive() { LLVMGetParam(llfunc, 2) } else { inst };
+            let inst = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
+            let model = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1);
+            let alpha = if kind.read_reactive() { LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2) } else { inst };
 
             for entry in module.dae_system.jacobian.keys() {
                 let mut res = None;
                 if kind.read_resistive() {
-                    res = self.load_jacobian_entry(entry, inst, model, llbuilder, false);
+                    res = self.load_jacobian_entry(entry, &*inst, &*model, &*llbuilder, false);
                 }
 
                 if kind.read_reactive() {
                     if let Some(mut val) =
-                        self.load_jacobian_entry(entry, inst, model, llbuilder, true)
+                        self.load_jacobian_entry(entry, &*inst, &*model, &*llbuilder, true)
                     {
-                        val = LLVMBuildFMul(llbuilder, val, alpha, UNNAMED);
-                        LLVMSetFastMath(val);
+                        val = &*LLVMBuildFMul(llbuilder,NonNull::from( val).as_ptr(), alpha, UNNAMED);
+                        let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+                        unsafe {
+                            llvm_sys::core::LLVMSetFastMathFlags(NonNull::from(val).as_ptr(), fast_math_flags);
+                        }
+
                         val = match res {
                             Some(resist) => {
-                                let val = LLVMBuildFAdd(llbuilder, resist, val, UNNAMED);
-                                LLVMSetFastMath(val);
-                                val
+                                let val = LLVMBuildFAdd(llbuilder, NonNull::from(resist).as_ptr(), NonNull::from(val).as_ptr(), UNNAMED);
+                                let fast_math_flags: c_uint = 0x1F; // This represents all flags set
+                                unsafe {
+                                    llvm_sys::core::LLVMSetFastMathFlags(val, fast_math_flags);
+                                }
+
+                                &*val
                             }
                             None => val,
                         };
@@ -322,8 +409,8 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                     self.inst_data.store_jacobian_contrib(
                         self.cx,
                         entry,
-                        inst,
-                        llbuilder,
+                        &*inst,
+                        &*llbuilder,
                         kind.dst_reactive(),
                         res,
                     );

@@ -8,7 +8,7 @@ use llvm_sys::LLVMIntPredicate::LLVMIntSLT;
 use mir::ControlFlowGraph;
 use mir_llvm::{Builder, BuilderVal, CallbackFun, CodegenCx, UNNAMED};
 use sim_back::SimUnknownKind;
-
+use core::ptr::NonNull;
 use crate::compilation_unit::{general_callbacks, OsdiCompilationUnit};
 use crate::inst_data::OsdiInstanceParam;
 
@@ -20,15 +20,15 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let llfunc = cx.declare_int_c_fn(name, fn_type);
 
         unsafe {
-            let entry = LLVMAppendBasicBlockInContext(cx.llcx, llfunc, UNNAMED);
-            let llbuilder = LLVMCreateBuilderInContext(cx.llcx);
+            let entry = LLVMAppendBasicBlockInContext(NonNull::from(cx.llcx).as_ptr(), NonNull::from(llfunc).as_ptr(), UNNAMED);
+            let llbuilder = LLVMCreateBuilderInContext(NonNull::from(cx.llcx).as_ptr());
             LLVMPositionBuilderAtEnd(llbuilder, entry);
 
             // get params
-            let inst = LLVMGetParam(llfunc, 0);
-            let idx = LLVMGetParam(llfunc, 1);
+            let inst = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0);
+            let idx = LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1);
 
-            inst_data.store_is_collapsible(cx, llbuilder, inst, idx);
+            inst_data.store_is_collapsible(cx, &*llbuilder, &*inst, &*idx);
 
             LLVMBuildRetVoid(llbuilder);
             LLVMDisposeBuilder(llbuilder);
@@ -70,9 +70,9 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let mut builder = Builder::new(cx, func, llfunc);
         let postorder: Vec<_> = cfg.postorder(func).collect();
 
-        let handle = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 0) };
-        let model = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 1) };
-        let simparam = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 2) };
+        let handle = unsafe { llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0) };
+        let model = unsafe { llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1) };
+        let simparam = unsafe { llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2) };
 
         builder.params = vec![BuilderVal::Undef; intern.params.len()].into();
 
@@ -80,12 +80,12 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             let i = i as u32;
 
             let dst = intern.params.unwrap_index(&ParamKind::Param(param));
-            let loc = model_data.nth_param_loc(cx, i, model);
+            let loc = model_data.nth_param_loc(cx, i, &*model);
             builder.params[dst] = BuilderVal::Load(Box::new(loc));
 
             let dst = intern.params.unwrap_index(&ParamKind::ParamGiven { param });
             let is_given =
-                unsafe { model_data.is_nth_param_given(cx, i, model, builder.llbuilder) };
+                unsafe { model_data.is_nth_param_given(cx, i, &*model, builder.llbuilder) };
             builder.params[dst] = BuilderVal::Eager(is_given);
         }
 
@@ -93,10 +93,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             let i = i as u32;
 
             let is_given =
-                unsafe { model_data.is_nth_inst_param_given(cx, i, model, builder.llbuilder) };
+                unsafe { model_data.is_nth_inst_param_given(cx, i, &*model, builder.llbuilder) };
 
             let val =
-                unsafe { model_data.read_nth_inst_param(inst_data, i, model, builder.llbuilder) };
+                unsafe { model_data.read_nth_inst_param(inst_data, i, &*model, builder.llbuilder) };
 
             match *param {
                 OsdiInstanceParam::Builtin(builtin) => {
@@ -116,7 +116,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             }
         }
 
-        let res = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 3) };
+        let res = unsafe { &*llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 3) };
 
         let err_cap = unsafe { builder.alloca(cx.ty_int()) };
 
@@ -139,7 +139,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let ret_flags = unsafe { builder.alloca(cx.ty_int()) };
         unsafe { builder.store(ret_flags, cx.const_int(0)) };
 
-        builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, handle, simparam);
+        builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, &*handle, &*simparam);
         for (call_id, call) in intern.callbacks.iter_enumerated() {
             if let CallBackKind::ParamInfo(ParamInfoKind::Invalid, param) = call {
                 if !self.module.info.params[param].is_instance {
@@ -180,7 +180,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             builder.select_bb_before_terminator(bb);
             unsafe {
                 let val = builder.values[val].get(&builder);
-                model_data.store_nth_param(i as u32, model, val, builder.llbuilder);
+                model_data.store_nth_param(i as u32, &*model, val, builder.llbuilder);
             }
         }
 
@@ -222,13 +222,13 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let intern = &module.init.intern;
         let mut builder = Builder::new(cx, func, llfunc);
 
-        let handle = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 0) };
-        let instance = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 1) };
-        let model = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 2) };
-        let temperature = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 3) };
-        let connected_terminals = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 4) };
-        let simparam = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 5) };
-        let res = unsafe { llvm_sys::core::LLVMGetParam(llfunc, 6) };
+        let handle = unsafe { llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 0) };
+        let instance = unsafe { &*llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 1) };
+        let model = unsafe { &*llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 2) };
+        let temperature = unsafe { llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 3) };
+        let connected_terminals = unsafe { llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 4) };
+        let simparam = unsafe { llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 5) };
+        let res = unsafe { llvm_sys::core::LLVMGetParam(NonNull::from(llfunc).as_ptr(), 6) };
 
         let ret_flags = unsafe { builder.alloca(cx.ty_int()) };
         unsafe { builder.store(ret_flags, cx.const_int(0)) };
@@ -290,7 +290,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         }
 
         if let Some(dst) = intern.params.index(&ParamKind::Temperature) {
-            builder.params[dst] = BuilderVal::Eager(temperature)
+            builder.params[dst] = BuilderVal::Eager(&*temperature)
         }
 
         for (node_id, unknown) in module.dae_system.unknowns.iter_enumerated() {
@@ -304,23 +304,23 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
                     let id = cx.const_unsigned_int(node_id.into());
                     let is_connected =
-                        unsafe { builder.int_cmp(id, connected_terminals, LLVMIntSLT) };
+                        unsafe { builder.int_cmp(id, &*connected_terminals, LLVMIntSLT) };
                     builder.params[dst] = BuilderVal::Eager(is_connected)
                 }
             }
         }
 
         // store for use in eval() function
-        unsafe { inst_data.store_temperature(&builder, instance, temperature) };
-        unsafe { inst_data.store_connected_ports(&builder, instance, connected_terminals) };
+        unsafe { inst_data.store_temperature(&mut builder, instance, &*temperature) };
+        unsafe { inst_data.store_connected_ports(&mut builder, instance, &*connected_terminals) };
 
         let trivial_cb = cx.trivial_callbacks(&[]);
 
         let err_cap = unsafe { builder.alloca(cx.ty_int()) };
 
-        let flags = unsafe { builder.struct_gep(tys.osdi_init_info, res, 0) };
-        let err_len = unsafe { builder.struct_gep(tys.osdi_init_info, res, 1) };
-        let err_ptr = unsafe { builder.struct_gep(tys.osdi_init_info, res, 2) };
+        let flags = unsafe { builder.struct_gep(tys.osdi_init_info, &*res, 0) };
+        let err_len = unsafe { builder.struct_gep(tys.osdi_init_info, &*res, 1) };
+        let err_ptr = unsafe { builder.struct_gep(tys.osdi_init_info, &*res, 2) };
 
         let nullptr = cx.const_null_ptr();
         let zero = cx.const_unsigned_int(0);
@@ -333,7 +333,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         }
 
         let invalid_param_err = Self::invalid_param_err(cx);
-        builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, handle, simparam);
+        builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, &*handle, &*simparam);
         for (call_id, call) in intern.callbacks.iter_enumerated() {
             let cb = match call {
                 CallBackKind::ParamInfo(ParamInfoKind::Invalid, param) => {
@@ -411,17 +411,17 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                 let llcx = cx.llcx;
                 let llbuilder = &*builder.llbuilder;
                 unsafe {
-                    let else_bb = LLVMAppendBasicBlockInContext(llcx, builder.fun, UNNAMED);
-                    let then_bb = LLVMAppendBasicBlockInContext(llcx, builder.fun, UNNAMED);
+                    let else_bb = LLVMAppendBasicBlockInContext(NonNull::from(llcx).as_ptr(), NonNull::from(builder.fun).as_ptr(), UNNAMED);
+                    let then_bb = LLVMAppendBasicBlockInContext(NonNull::from(llcx).as_ptr(), NonNull::from(builder.fun).as_ptr(), UNNAMED);
                     let should_collapse = builder.values[should_collapse].get(&builder);
-                    LLVMBuildCondBr(llbuilder, should_collapse, then_bb, else_bb);
-                    LLVMPositionBuilderAtEnd(llbuilder, then_bb);
+                    LLVMBuildCondBr(NonNull::from(llbuilder).as_ptr(), NonNull::from(should_collapse).as_ptr(), then_bb, else_bb);
+                    LLVMPositionBuilderAtEnd(NonNull::from(llbuilder).as_ptr(), then_bb);
                     module.node_collapse.hint(eq, None, |pair| {
                         let idx = cx.const_unsigned_int(pair.into());
                         inst_data.store_is_collapsible(cx, builder.llbuilder, instance, idx);
                     });
-                    LLVMBuildBr(llbuilder, else_bb);
-                    LLVMPositionBuilderAtEnd(llbuilder, else_bb);
+                    LLVMBuildBr(NonNull::from(llbuilder).as_ptr(), else_bb);
+                    LLVMPositionBuilderAtEnd(NonNull::from(llbuilder).as_ptr(), else_bb);
                 }
             }
         }

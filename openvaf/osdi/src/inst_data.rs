@@ -1040,7 +1040,7 @@ impl<'ll> OsdiInstanceData<'ll> {
 
     pub unsafe fn store_temperature(
         &self,
-        builder: &mir_llvm::Builder<'_, '_, 'll>,
+        builder: &mut mir_llvm::Builder<'_, '_, 'll>,
         ptr: &'ll llvm_sys::LLVMValue,
         val: &'ll llvm_sys::LLVMValue,
     ) {
@@ -1050,7 +1050,7 @@ impl<'ll> OsdiInstanceData<'ll> {
 
     pub unsafe fn load_connected_ports(
         &self,
-        builder: &mir_llvm::Builder<'_, '_, 'll>,
+        builder: &mut mir_llvm::Builder<'_, '_, 'll>,
         ptr: &'ll llvm_sys::LLVMValue,
     ) -> &'ll llvm_sys::LLVMValue {
         let ptr = builder.struct_gep(self.ty, ptr, CONNECTED);
@@ -1059,10 +1059,13 @@ impl<'ll> OsdiInstanceData<'ll> {
 
     pub unsafe fn store_connected_ports(
         &self,
-        builder: &mir_llvm::Builder<'_, '_, 'll>,
+        builder: &mut mir_llvm::Builder<'_, '_, 'll>,
         ptr: &'ll llvm_sys::LLVMValue,
         val: &'ll llvm_sys::LLVMValue,
     ) {
+        /*let builder_mut: &mut _ = unsafe {
+        &mut *(builder as *const _ as *mut mir_llvm::Builder<'_, '_, 'll>)
+    };*/
         let ptr = builder.struct_gep(self.ty, ptr, CONNECTED);
         builder.store(ptr, val)
     }

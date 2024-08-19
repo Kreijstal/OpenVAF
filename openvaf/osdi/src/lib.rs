@@ -17,6 +17,7 @@ use std::ffi::CString;
 use crate::compilation_unit::{new_codegen, OsdiCompilationUnit, OsdiModule};
 use crate::metadata::osdi_0_3::OsdiTys;
 use crate::metadata::OsdiLimFunction;
+use core::ptr::NonNull;
 
 mod access;
 mod bitfield;
@@ -67,7 +68,7 @@ pub fn compile(
 
     let target_data = unsafe {
         let src = CString::new(target.data_layout.clone()).unwrap();
-        llvm::LLVMCreateTargetData(src.as_ptr())
+        llvm_sys::target::LLVMCreateTargetData(src.as_ptr())
     };
 
     let modules: Vec<_> = modules
@@ -213,11 +214,11 @@ pub fn compile(
             cx.get_declared_value("osdi_log").expect("symbol osdi_log missing from std lib");
         let val = cx.const_null_ptr();
         unsafe {
-            llvm::LLVMSetInitializer(osdi_log, val);
-            llvm::LLVMSetLinkage(osdi_log, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
-            llvm::LLVMSetUnnamedAddress(osdi_log, llvm_sys::LLVMUnnamedAddr::LLVMNoUnnamedAddr);
-            llvm::LLVMSetDLLStorageClass(
-                osdi_log,
+            llvm_sys::core::LLVMSetInitializer(NonNull::from(osdi_log).as_ptr(), NonNull::from(val).as_ptr());
+            llvm_sys::core::LLVMSetLinkage(NonNull::from(osdi_log).as_ptr(), llvm_sys::LLVMLinkage::LLVMExternalLinkage);
+            llvm_sys::core::LLVMSetUnnamedAddress(NonNull::from(osdi_log).as_ptr(), llvm_sys::LLVMUnnamedAddr::LLVMNoUnnamedAddr);
+            llvm_sys::core::LLVMSetDLLStorageClass(
+                NonNull::from(osdi_log).as_ptr(),
                 llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass,
             );
         }

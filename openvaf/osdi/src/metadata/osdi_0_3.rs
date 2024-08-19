@@ -129,14 +129,20 @@ impl OsdiTyBuilder<'_, '_, '_> {
     fn osdi_init_error_payload(&mut self) {
         let ctx = self.ctx;
         unsafe {
-            let align = [llvm_sys::target::LLVMABIAlignmentOfType(self.target_data, NonNull::from(ctx.ty_int()).as_ptr(),)]
-                .into_iter()
-                .max()
-                .unwrap();
-            let mut size = [llvm_sys::target::LLVMABISizeOfType(self.target_data, NonNull::from(ctx.ty_int()).as_ptr(),)]
-                .into_iter()
-                .max()
-                .unwrap() as u32;
+            let align = [llvm_sys::target::LLVMABIAlignmentOfType(
+                self.target_data,
+                NonNull::from(ctx.ty_int()).as_ptr(),
+            )]
+            .into_iter()
+            .max()
+            .unwrap();
+            let mut size = [llvm_sys::target::LLVMABISizeOfType(
+                self.target_data,
+                NonNull::from(ctx.ty_int()).as_ptr(),
+            )]
+            .into_iter()
+            .max()
+            .unwrap() as u32;
             size = (size + align - 1) / align;
             let elem = ctx.ty_aint(align * 8);
             let ty = ctx.ty_array(elem, size);

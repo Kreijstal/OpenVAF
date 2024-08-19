@@ -79,7 +79,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let ret_flags = unsafe { builder.alloca(cx.ty_int()) };
         unsafe { builder.store(ret_flags, cx.const_int(0)) };
 
-        let connected_ports = unsafe { inst_data.load_connected_ports(&builder, instance) };
+        let connected_ports = unsafe { inst_data.load_connected_ports(&mut builder, instance) };
         let prev_solve: TiVec<_, _> = module
             .dae_system
             .unknowns
@@ -125,7 +125,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                             if let Some(lo) = lo {
                                 let lo = get_prev_solve(SimUnknownKind::KirchoffLaw(lo));
                                 &*llvm_sys::core::LLVMBuildFSub(
-                                    NonNull::from(builder.llbuilder).as_ptr(),
+                                    builder.llbuilder,
                                     NonNull::from(hi).as_ptr(),
                                     NonNull::from(lo).as_ptr(),
                                     UNNAMED,
@@ -201,7 +201,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                             let is_not_ic =
                                 is_flag_unset(cx, ANALYSIS_IC, flags, builder.llbuilder);
                             &*LLVMBuildAnd(
-                                NonNull::from(builder.llbuilder).as_ptr(),
+                                builder.llbuilder,
                                 NonNull::from(is_not_dc).as_ptr(),
                                 NonNull::from(is_not_ic).as_ptr(),
                                 UNNAMED,
