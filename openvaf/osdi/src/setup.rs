@@ -80,7 +80,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             let i = i as u32;
 
             let dst = intern.params.unwrap_index(&ParamKind::Param(param));
-            let loc = model_data.nth_param_loc(cx, i, &*model);
+            let loc = unsafe { model_data.nth_param_loc(cx, i, &*model) };
             builder.params[dst] = BuilderVal::Load(Box::new(loc));
 
             let dst = intern.params.unwrap_index(&ParamKind::ParamGiven { param });
