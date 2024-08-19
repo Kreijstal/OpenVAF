@@ -139,7 +139,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let ret_flags = unsafe { builder.alloca(cx.ty_int()) };
         unsafe { builder.store(ret_flags, cx.const_int(0)) };
 
-        builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, &*handle, &*simparam);
+        builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, unsafe { &*handle }, unsafe { &*simparam });
         for (call_id, call) in intern.callbacks.iter_enumerated() {
             if let CallBackKind::ParamInfo(ParamInfoKind::Invalid, param) = call {
                 if !self.module.info.params[param].is_instance {
@@ -290,7 +290,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         }
 
         if let Some(dst) = intern.params.index(&ParamKind::Temperature) {
-            builder.params[dst] = BuilderVal::Eager(&*temperature)
+            builder.params[dst] = BuilderVal::Eager(unsafe { &*temperature })
         }
 
         for (node_id, unknown) in module.dae_system.unknowns.iter_enumerated() {
@@ -333,7 +333,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         }
 
         let invalid_param_err = Self::invalid_param_err(cx);
-        builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, &*handle, &*simparam);
+        builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, unsafe { &*handle }, unsafe { &*simparam });
         for (call_id, call) in intern.callbacks.iter_enumerated() {
             let cb = match call {
                 CallBackKind::ParamInfo(ParamInfoKind::Invalid, param) => {
