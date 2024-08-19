@@ -168,13 +168,13 @@ pub fn compile(
 
         let llmod = unsafe { back.new_module(&name, opt_lvl).unwrap() };
         let cx = new_codegen(back, &llmod, &literals);
-        let tys = OsdiTys::new(&cx, target_data);
+        let tys = OsdiTys::new(&cx, &target_data);
 
         let descriptors: Vec<_> = modules
             .iter()
             .map(|module| {
                 let cguint = OsdiCompilationUnit::new(&db, module, &cx, &tys, false);
-                let descriptor = cguint.descriptor(target_data, &db);
+                let descriptor = cguint.descriptor(&target_data, &db);
                 descriptor.to_ll_val(&cx, &tys)
             })
             .collect();

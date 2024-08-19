@@ -242,7 +242,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
     pub fn descriptor(
         &self,
-        target_data: &llvm::LLVMTargetDataRef,
+        target_data: &llvm_sys::target::LLVMTargetDataRef,
         db: &CompilationDB,
     ) -> OsdiDescriptor<'ll> {
         let collapsible = self.collapsible();
@@ -250,19 +250,19 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
         unsafe {
             let node_mapping_offset =
-                LLVMOffsetOfElement(target_data, inst_data.ty, NODE_MAPPING) as u32;
+                LLVMOffsetOfElement(*target_data,NonNull::from(inst_data.ty).as_ptr(), NODE_MAPPING) as u32;
             let jacobian_ptr_resist_offset =
-                LLVMOffsetOfElement(target_data, inst_data.ty, JACOBIAN_PTR_RESIST) as u32;
+                LLVMOffsetOfElement(*target_data, NonNull::from(inst_data.ty).as_ptr(), JACOBIAN_PTR_RESIST) as u32;
 
-            let collapsed_offset = LLVMOffsetOfElement(target_data, inst_data.ty, COLLAPSED) as u32;
+            let collapsed_offset = LLVMOffsetOfElement(*target_data, NonNull::from(inst_data.ty).as_ptr(), COLLAPSED) as u32;
             let bound_step_offset = inst_data.bound_step_elem().map_or(u32::MAX, |elem| {
-                LLVMOffsetOfElement(target_data, inst_data.ty, elem) as u32
+                LLVMOffsetOfElement(*target_data, NonNull::from(inst_data.ty).as_ptr(), elem) as u32
             });
 
-            let state_idx_off = LLVMOffsetOfElement(target_data, inst_data.ty, STATE_IDX) as u32;
+            let state_idx_off = LLVMOffsetOfElement(*target_data, NonNull::from(inst_data.ty).as_ptr(), STATE_IDX) as u32;
 
-            let instance_size = LLVMABISizeOfType(target_data, inst_data.ty) as u32;
-            let model_size = LLVMABISizeOfType(target_data, model_data.ty) as u32;
+            let instance_size = LLVMABISizeOfType(*target_data, NonNull::from(inst_data.ty).as_ptr()) as u32;
+            let model_size = LLVMABISizeOfType(*target_data, NonNull::from(model_data.ty).as_ptr()) as u32;
 
             let noise_sources: Vec<_> = module
                 .dae_system
