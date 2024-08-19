@@ -315,7 +315,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                         inst_data.store_jacobian(entry, instance, builder, reactive)
                     }
                 };
-                Self::build_store_results(&builder, llfunc, &flags, jacobian_flag, &store_matrix);
+                Self::build_store_results(&mut builder, llfunc, &flags, jacobian_flag, &store_matrix);
 
                 let store_residual = |builder: &Builder<'_, '_, 'll>| {
                     for unknown in module.dae_system.unknowns.indices() {
@@ -357,11 +357,11 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
     }
 
     unsafe fn build_store_results(
-        builder: &Builder<'_, '_, 'll>,
+        builder: &mut Builder<'_, '_, 'll>,
         llfunc: &'ll llvm_sys::LLVMValue,
         flags: &MemLoc<'ll>,
         flag: u32,
-        store_val: &dyn Fn(&Builder<'_, '_, 'll>),
+        store_val: &dyn Fn(&mut Builder<'_, '_, 'll>),
     ) {
         let cx = builder.cx;
         let bb = LLVMAppendBasicBlockInContext(
