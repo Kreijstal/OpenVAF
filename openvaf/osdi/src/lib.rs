@@ -87,7 +87,7 @@ pub fn compile(
     rayon_core::scope(|scope| {
         let db = db;
         let literals_ = &literals;
-        let mut target_data_ =  target_data;
+        let target_data_ =  target_data;
         let paths = &paths;
 
         for (i, module) in modules.iter().enumerate() {

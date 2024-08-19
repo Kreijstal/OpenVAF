@@ -29,7 +29,6 @@ use sim_back::init::Initialization;
 use sim_back::node_collapse::NodeCollapse;
 use sim_back::{CompiledModule, ModuleInfo};
 use std::iter;
-use std::os::raw::c_uint;
 use std::ptr::NonNull;
 use typed_index_collections::TiVec;
 use typed_indexmap::TiSet;
