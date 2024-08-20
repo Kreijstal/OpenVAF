@@ -11,16 +11,16 @@ use crate::api::{LLVMCodeGenOptLevel, Opts, Slice};
 impl From<LLVMCodeGenOptLevel> for llvm_sys::target_machine::LLVMCodeGenOptLevel {
     fn from(lvl: LLVMCodeGenOptLevel) -> Self {
         match lvl {
-            LLVMCodeGenOptLevel::LLVMCodeGenLevelNone => {
+            LLVMCodeGenOptLevel::None => {
                 llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelNone
             }
-            LLVMCodeGenOptLevel::LLVMCodeGenLevelLess => {
+            LLVMCodeGenOptLevel::Less => {
                 llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelLess
             }
-            LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault => {
+            LLVMCodeGenOptLevel::Default => {
                 llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault
             }
-            LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive => {
+            LLVMCodeGenOptLevel::Aggressive => {
                 llvm_sys::target_machine::LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive
             }
         }
