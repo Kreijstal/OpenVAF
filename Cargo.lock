@@ -716,9 +716,9 @@ dependencies = [
 
 [[package]]
 name = "llvm-sys"
-version = "181.1.1"
+version = "181.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d255b36907416971229095a8465c0b69f5f1c6fb8421b6dcdbb64eb47e1be90"
+checksum = "d320f9d2723c97d4b78f9190a61ed25cc7cfbe456668c08e6e7dd8e50ceb8500"
 dependencies = [
  "anyhow",
  "cc",
@@ -1003,6 +1003,7 @@ dependencies = [
  "clap",
  "directories-next",
  "env_logger",
+ "llvm-sys",
  "log",
  "mimalloc",
  "mini_harness",
