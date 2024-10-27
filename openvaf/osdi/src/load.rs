@@ -119,15 +119,23 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                     }
                     NoiseSourceKind::NoiseTable { .. } => unimplemented!("noise tables"),
                 };
-                pwr = &*LLVMBuildFMul(
-                    llbuilder,
-                    NonNull::from(pwr).as_ptr(),
-                    NonNull::from(fac).as_ptr(),
-                    UNNAMED,
-                );
-                let fast_math_flags: c_uint = 0x1F; // This represents all flags set
-                llvm_sys::core::LLVMSetFastMathFlags(NonNull::from(pwr).as_ptr(), fast_math_flags);
+<<<<<<< HEAD
+                // Multiply with squared factor because factor is in terms of signal, but
+                // we are computing the power, which is scaled by factor**2. 
+                pwr = LLVMBuildFMul(llbuilder, pwr, fac, UNNAMED);
+                LLVMSetFastMath(pwr);
+                pwr = LLVMBuildFMul(llbuilder, pwr, fac, UNNAMED);
+                LLVMSetFastMath(pwr);
+>>>>>>> reloaded/master
 
+=======
+                // Multiply with squared factor because factor is in terms of signal, but
+                // we are computing the power, which is scaled by factor**2. 
+                pwr = LLVMBuildFMul(llbuilder, pwr, fac, UNNAMED);
+                LLVMSetFastMath(pwr);
+                pwr = LLVMBuildFMul(llbuilder, pwr, fac, UNNAMED);
+                LLVMSetFastMath(pwr);
+>>>>>>> reloaded/master
                 let dst = LLVMBuildGEP2(
                     llbuilder,
                     NonNull::from(cx.ty_double()).as_ptr(),

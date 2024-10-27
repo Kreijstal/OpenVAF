@@ -71,19 +71,41 @@ impl<'a> CompiledModule<'a> {
         cx.compute_cfg();
         let gvn = cx.optimize(OptimiziationStage::PostDerivative);
         dae_system.sparsify(&mut cx);
-        debug_assert!(cx.func.validate());
 
-        // For debugging
-        // println!("{:?}", cx.func);
+        // For debugging - print DAE system
+        if false && cfg!(debug_assertions) {
+            let cu = db.compilation_unit();
+            println!("Compilation unit: {}", cu.name(db));
+                        
+            let m = module.module;
+            println!("Module: {:?}", m.name(db));
+            println!("Ports: {:?}", m.ports(db));
+            println!("Internal nodes: {:?}", m.internal_nodes(db));
+                        
+            println!("DAE system");
+            let str = format!("{dae_system:#?}");
+            println!("{}", str);
+            println!("");
+        
+            println!("CX function");
+            println!("{:?}", cx.func);
+            println!("");
+        }
+        
+        debug_assert!(cx.func.validate());
 
         cx.refresh_op_dependent_insts();
         let mut init = Initialization::new(&mut cx, gvn);
         let node_collapse = NodeCollapse::new(&init, &dae_system, &cx);
         debug_assert!(cx.func.validate());
 
-        // For debugging
-        // println!("{:?}", init.func);
-
+        // For debugging - print MIR
+        if false && cfg!(debug_assertions) {
+            println!("Init function");
+            println!("{:?}", init.func);
+            println!("");
+        }
+        
         debug_assert!(init.func.validate());
 
         // TODO: refactor param intilization to use tables
