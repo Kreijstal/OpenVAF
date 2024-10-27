@@ -131,14 +131,20 @@ impl OsdiTyBuilder<'_, '_, '_> {
     fn osdi_init_error_payload(&mut self) {
         let ctx = self.ctx;
         unsafe {
-            let align = [llvm_sys::target::LLVMABIAlignmentOfType(self.target_data, ctx.ty_int())]
-                .into_iter()
-                .max()
-                .unwrap();
-            let mut size = [llvm_sys::target::LLVMABISizeOfType(self.target_data, ctx.ty_int())]
-                .into_iter()
-                .max()
-                .unwrap() as u32;
+            let align = [llvm_sys::target::LLVMABIAlignmentOfType(
+                self.target_data.clone(),
+                core::ptr::NonNull::from(ctx.ty_int()).as_ptr(),
+            )]
+            .into_iter()
+            .max()
+            .unwrap();
+            let mut size = [llvm_sys::target::LLVMABISizeOfType(
+                self.target_data.clone(),
+                core::ptr::NonNull::from(ctx.ty_int()).as_ptr(),
+            )]
+            .into_iter()
+            .max()
+            .unwrap() as u32;
             size = (size + align - 1) / align;
             let elem = ctx.ty_aint(align * 8);
             let ty = ctx.ty_array(elem, size);
@@ -502,7 +508,7 @@ pub struct OsdiTys<'ll> {
     pub osdi_descriptor: &'ll llvm_sys::LLVMType,
 }
 impl<'ll> OsdiTys<'ll> {
-    pub fn new(ctx: &CodegenCx<'_, 'll>, target_data: &llvm::TargetData) -> Self {
+    pub fn new(ctx: &CodegenCx<'_, 'll>, target_data: llvm_sys::target::LLVMTargetDataRef) -> Self {
         let mut builder = OsdiTyBuilder {
             ctx,
             target_data,
@@ -536,7 +542,7 @@ impl<'ll> OsdiTys<'ll> {
 }
 struct OsdiTyBuilder<'a, 'b, 'll> {
     ctx: &'a CodegenCx<'b, 'll>,
-    target_data: &'a llvm::TargetData,
+    target_data: llvm_sys::target::LLVMTargetDataRef,
     osdi_lim_function: Option<&'ll llvm_sys::LLVMType>,
     osdi_sim_paras: Option<&'ll llvm_sys::LLVMType>,
     osdi_sim_info: Option<&'ll llvm_sys::LLVMType>,
