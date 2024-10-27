@@ -474,17 +474,18 @@ impl ModuleLlvm {
                 }
             };
 
-            // Convert optimization level to C string
-            let opt_level_cstring = CString::new(opt_level).unwrap();
+            let error = {
+                // Create variables in inner scope
+                let opt_level_cstring = CString::new(opt_level).unwrap();
+                let opt_level_ptr = opt_level_cstring.as_ptr();
 
-            // Run passes
-            let error = LLVMRunPasses(
-                NonNull::from(self.llmod()).as_ptr(),
-                opt_level_cstring.as_ptr(),
-                self.tm,
-                options,
-            );
+                let llmod = self.llmod();
+                let llmod_ptr = NonNull::from(llmod).as_ptr();
 
+                // Run passes while values are guaranteed to be alive
+                LLVMRunPasses(llmod_ptr, opt_level_ptr, self.tm, options)
+                // Variables are dropped at end of this block, after LLVMRunPasses completes
+            };
             // Check for errors
             if !error.is_null() {
                 // Handle error

@@ -463,12 +463,16 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                 NonNull::from(cx.const_c_bool(false)).as_ptr(),
                 val_changed,
             );
+            let id_val = cx.const_unsigned_int(id.into()) as *const llvm_sys::LLVMValue as *mut _;
+            let two_val = cx.const_int(2) as *const llvm_sys::LLVMValue as *mut _;
+            let mut gep_indices: [llvm_sys::prelude::LLVMValueRef; 2] = [id_val, two_val];
+            let gep_ptr = gep_indices.as_mut_ptr();
 
             let func_ptr_ptr = LLVMBuildInBoundsGEP2(
                 NonNull::from(llbuilder).as_ptr(),
                 NonNull::from(tys.osdi_lim_function).as_ptr(),
                 NonNull::from(table).as_ptr(),
-                llvm_array_nonnull![cx.const_unsigned_int(id.into()), cx.const_int(2)],
+                gep_ptr,
                 2,
                 UNNAMED,
             );

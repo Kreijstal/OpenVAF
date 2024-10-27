@@ -153,7 +153,7 @@ pub fn compile(
                 let mut cguint = OsdiCompilationUnit::new(&_db, module, &cx, &tys, false);
 
                 cguint.setup_instance();
-                let _ir = llmod.to_str();
+                //let _ir = llmod.to_str();
                 //println!("llmod: {}", _ir);
 
                 debug_assert!(llmod.verify_and_print());

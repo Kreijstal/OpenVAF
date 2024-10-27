@@ -61,7 +61,7 @@ fn gen_msvcrt_importlib(sh: &Shell, arch: &str, target: &str, check: bool) {
     }
 }
 
-fn gen_msys2_importlib(sh: &Shell, arch: &str, target: &str, check: bool) {
+fn gen_msys2_importlib(sh: &Shell, arch: &str, _target: &str, check: bool) {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let out_file = out_dir.join(format!("ucrt_{arch}.lib"));
     if check {

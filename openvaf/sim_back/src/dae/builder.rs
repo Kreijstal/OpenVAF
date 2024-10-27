@@ -515,21 +515,17 @@ impl<'a> Builder<'a> {
             // Leave srcfactor unchanged if mfactor is 1
             (F_ONE, fac) => fac,
             // mfactor is not 1
-            // Note that srcfactor is the signal scaling factor. 
-            // Because power scales with mfactor the signal scales with 
-            // sqrt(mfactor). 
+            // Note that srcfactor is the signal scaling factor.
+            // Because power scales with mfactor the signal scales with
+            // sqrt(mfactor).
             (mfactor, srcfactor) => {
-                let sqrt_mfactor = self.cursor
-                    .ins()
-                    .sqrt(mfactor);
+                let sqrt_mfactor = self.cursor.ins().sqrt(mfactor);
                 if srcfactor == F_ONE {
                     // Old factor is 1, replace it with sqrt(mfactor)
                     sqrt_mfactor
                 } else {
                     // Multiply old factor with sqrt(mfactor)
-                    self.cursor
-                        .ins()
-                        .fmul(srcfactor, sqrt_mfactor)
+                    self.cursor.ins().fmul(srcfactor, sqrt_mfactor)
                 }
             }
         }
@@ -540,16 +536,12 @@ impl<'a> Builder<'a> {
             // Leave srcfactor unchanged if mfactor is 1
             (F_ONE, fac) => fac,
             // mfactor is not 1
-            // Note that srcfactor is the signal scaling factor. 
-            // Because power scales with mfactor the signal scales with 
-            // sqrt(mfactor). 
+            // Note that srcfactor is the signal scaling factor.
+            // Because power scales with mfactor the signal scales with
+            // sqrt(mfactor).
             (mfactor, srcfactor) => {
-                let sqrt_mfactor = self.cursor
-                    .ins()
-                    .sqrt(mfactor);                 
-                self.cursor
-                    .ins()
-                    .fdiv(srcfactor, sqrt_mfactor)
+                let sqrt_mfactor = self.cursor.ins().sqrt(mfactor);
+                self.cursor.ins().fdiv(srcfactor, sqrt_mfactor)
             }
         }
     }

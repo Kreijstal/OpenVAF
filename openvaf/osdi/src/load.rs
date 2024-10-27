@@ -92,11 +92,18 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                             .cx
                             .intrinsic("llvm.pow.f64")
                             .unwrap_or_else(|| unreachable!("intrinsic {} not found", name));
+
+                        let freq_val = freq as *const llvm_sys::LLVMValue as *mut _;
+                        let exp_val = &*exp as *const llvm_sys::LLVMValue as *mut _;
+                        let mut call_args: [llvm_sys::prelude::LLVMValueRef; 2] =
+                            [freq_val, exp_val];
+                        let args_ptr = call_args.as_mut_ptr();
+
                         let freq_exp = LLVMBuildCall2(
                             llbuilder,
                             NonNull::from(ty).as_ptr(),
                             NonNull::from(fun).as_ptr(),
-                            llvm_array_nonnull![freq, &*exp],
+                            args_ptr,
                             2,
                             UNNAMED,
                         );
@@ -121,7 +128,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                 };
 
                 // Multiply with squared factor because factor is in terms of signal, but
-                // we are computing the power, which is scaled by factor**2. 
+                // we are computing the power, which is scaled by factor**2.
                 pwr = &*LLVMBuildFMul(
                     llbuilder,
                     NonNull::from(pwr).as_ptr(),
@@ -137,11 +144,16 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                     UNNAMED,
                 );
                 llvm_sys::core::LLVMSetFastMathFlags(NonNull::from(pwr).as_ptr(), fast_math_flags);
+                let index_val =
+                    cx.const_unsigned_int(i as u32) as *const llvm_sys::LLVMValue as *mut _;
+                let mut gep_indices: [llvm_sys::prelude::LLVMValueRef; 1] = [index_val];
+                let gep_ptr = gep_indices.as_mut_ptr();
+
                 let dst = LLVMBuildGEP2(
                     llbuilder,
                     NonNull::from(cx.ty_double()).as_ptr(),
                     dst,
-                    llvm_array_nonnull![cx.const_unsigned_int(i as u32)],
+                    gep_ptr,
                     1,
                     UNNAMED,
                 );
