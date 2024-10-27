@@ -14,6 +14,8 @@ const STDLIB_BITCODE_AARCH64_PC_WINDOWS_MSVC: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/stdlib_0_4_aarch64-pc-windows-msvc.bc"));
 const STDLIB_BITCODE_ARM64_APPLE_MACOSX11_0_0: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/stdlib_0_4_arm64-apple-macosx11.0.0.bc"));
+const STDLIB_BITCODE_X86_64_PC_WINDOWS_GNU: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/stdlib_0_4_x86_64-pc-windows-gnu.bc"));
 pub fn stdlib_bitcode(target: &target::spec::Target) -> &'static [u8] {
     match &*target.llvm_target {
         "x86_64-unknown-linux-gnu" => STDLIB_BITCODE_X86_64_UNKNOWN_LINUX_GNU,
@@ -22,10 +24,10 @@ pub fn stdlib_bitcode(target: &target::spec::Target) -> &'static [u8] {
         "aarch64-unknown-linux-gnu" => STDLIB_BITCODE_AARCH64_UNKNOWN_LINUX_GNU,
         "aarch64-pc-windows-msvc" => STDLIB_BITCODE_AARCH64_PC_WINDOWS_MSVC,
         "arm64-apple-macosx11.0.0" => STDLIB_BITCODE_ARM64_APPLE_MACOSX11_0_0,
+        "x86_64-pc-windows-gnu" => STDLIB_BITCODE_X86_64_PC_WINDOWS_GNU,
         triple => unreachable!("unknown target triple {triple}"),
     }
 }
-use core::ptr::NonNull;
 pub const OSDI_VERSION_MAJOR_CURR: u32 = 0;
 pub const OSDI_VERSION_MINOR_CURR: u32 = 4;
 pub const PARA_TY_MASK: u32 = 3;
@@ -129,20 +131,14 @@ impl OsdiTyBuilder<'_, '_, '_> {
     fn osdi_init_error_payload(&mut self) {
         let ctx = self.ctx;
         unsafe {
-            let align = [llvm_sys::target::LLVMABIAlignmentOfType(
-                self.target_data,
-                NonNull::from(ctx.ty_int()).as_ptr(),
-            )]
-            .into_iter()
-            .max()
-            .unwrap();
-            let mut size = [llvm_sys::target::LLVMABISizeOfType(
-                self.target_data,
-                NonNull::from(ctx.ty_int()).as_ptr(),
-            )]
-            .into_iter()
-            .max()
-            .unwrap() as u32;
+            let align = [llvm_sys::target::LLVMABIAlignmentOfType(self.target_data, ctx.ty_int())]
+                .into_iter()
+                .max()
+                .unwrap();
+            let mut size = [llvm_sys::target::LLVMABISizeOfType(self.target_data, ctx.ty_int())]
+                .into_iter()
+                .max()
+                .unwrap() as u32;
             size = (size + align - 1) / align;
             let elem = ctx.ty_aint(align * 8);
             let ty = ctx.ty_array(elem, size);
@@ -506,7 +502,7 @@ pub struct OsdiTys<'ll> {
     pub osdi_descriptor: &'ll llvm_sys::LLVMType,
 }
 impl<'ll> OsdiTys<'ll> {
-    pub fn new(ctx: &CodegenCx<'_, 'll>, target_data: llvm_sys::target::LLVMTargetDataRef) -> Self {
+    pub fn new(ctx: &CodegenCx<'_, 'll>, target_data: &llvm::TargetData) -> Self {
         let mut builder = OsdiTyBuilder {
             ctx,
             target_data,
@@ -540,7 +536,7 @@ impl<'ll> OsdiTys<'ll> {
 }
 struct OsdiTyBuilder<'a, 'b, 'll> {
     ctx: &'a CodegenCx<'b, 'll>,
-    target_data: llvm_sys::target::LLVMTargetDataRef,
+    target_data: &'a llvm::TargetData,
     osdi_lim_function: Option<&'ll llvm_sys::LLVMType>,
     osdi_sim_paras: Option<&'ll llvm_sys::LLVMType>,
     osdi_sim_info: Option<&'ll llvm_sys::LLVMType>,
