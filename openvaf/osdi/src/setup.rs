@@ -409,6 +409,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                 }
                 _ => continue,
             };
+            println!("call_id: {}, builder.callbacks.len(): {}, builder.callbacks.capacity(): {}", call_id, builder.callbacks.len(), builder.callbacks.capacity());
 
             builder.callbacks[call_id] = Some(cb);
         }
