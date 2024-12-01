@@ -20,7 +20,7 @@ libc = "0.2"
 
 [build-dependencies]
 
-pyo3-build-config = { version = "0.19", features = ["resolve-config"] }
+pyo3-build-config = { version = "0.20.2", features = ["resolve-config"] }
 
 
 [features]
