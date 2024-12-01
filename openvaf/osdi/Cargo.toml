@@ -22,7 +22,7 @@ mir = { version = "0.0.0", path = "../mir" }
 mir_llvm = { version = "0.0.0", path = "../mir_llvm" }
 
 #llvm = { version = "0.0.0", path = "../llvm" }
-llvm-sys = "181.1.1"
+llvm-sys = "191.0.0"
 target = { version = "0.0.0", path = "../target"}
 
 typed-index-collections = "3.1"
