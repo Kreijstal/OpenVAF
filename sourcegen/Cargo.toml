@@ -18,7 +18,7 @@ maintenance = { status = "actively-developed" }
 [dev-dependencies]
 xshell = "0.2.3"
 indexmap = "2.0"
-proc-macro2 = "1.0.70"
+proc-macro2 = "1.0.69"
 quote = "1.0"
 ungrammar = "1.16"
 ahash = "0.8"
