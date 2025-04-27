@@ -7,7 +7,7 @@ use llvm::{
     LLVMGetParam, LLVMPositionBuilderAtEnd, UNNAMED,
 };
 use log::info;
-use mir_llvm::{Builder, BuilderVal, CallbackFun, BuiltCallbackFun, MemLoc, InlineCallbackBuilder};
+use mir_llvm::{Builder, BuilderVal, BuiltCallbackFun, CallbackFun, InlineCallbackBuilder, MemLoc};
 use sim_back::SimUnknownKind;
 use typed_index_collections::TiVec;
 
@@ -22,39 +22,46 @@ use crate::metadata::osdi_0_4::{
 use crate::metadata::OsdiLimFunction;
 use crate::OsdiLimId;
 
-/* 
-// Inline callback example
 struct AbortCallback;
 
 impl<'ll> InlineCallbackBuilder<'ll> for AbortCallback {
-    fn build_inline(&self, builder: &Builder<'_, '_, 'll>, state: &Box<[&'ll llvm::Value]>) -> &'ll llvm::Value { 
+    fn build_inline(
+        &self,
+        builder: &Builder<'_, '_, 'll>,
+        state: &Box<[&'ll llvm::Value]>,
+    ) -> &'ll llvm::Value {
         let cx = builder.cx;
-        unsafe {    
+        unsafe {
             // state[0] .. ret_flags value
             // state[1] .. llfunc prototype
-            
+
             // Create return and continue block
             let ret_block = LLVMAppendBasicBlockInContext(cx.llcx, state[1], UNNAMED);
             let cont_block = LLVMAppendBasicBlockInContext(cx.llcx, state[1], UNNAMED);
-            
+
             // Branch always to return block
-            LLVMBuildBr(builder.llbuilder, ret_block);
+            let cond = cx.const_bool(true);
+            LLVMBuildCondBr(builder.llbuilder, cond, ret_block, cont_block);
 
             // Add ret to return block
             LLVMPositionBuilderAtEnd(builder.llbuilder, ret_block);
-            builder.ret();
+            let ret_flags = builder.load(cx.ty_int(), state[0]);
+            builder.ret(ret_flags);
 
             // Position builder at start of continue block (will be discarded after optimization)
             LLVMPositionBuilderAtEnd(builder.llbuilder, cont_block);
         }
-        cx.const_int(0) 
+        cx.const_int(0)
     }
 
-    fn return_type(&self, builder: &Builder<'_, '_, 'll>, _state: &Box<[&'ll llvm::Value]>) -> &'ll llvm::Type {
+    fn return_type(
+        &self,
+        builder: &Builder<'_, '_, 'll>,
+        _state: &Box<[&'ll llvm::Value]>,
+    ) -> &'ll llvm::Type {
         builder.cx.ty_int()
     }
 }
-*/
 
 impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
     pub fn eval_prototype(&self) -> &'ll llvm::Value {
@@ -74,7 +81,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let func = module.eval;
         let intern = module.intern;
 
-        let mut builder = Builder::new(cx, func, llfunc, Some(cx.ty_int()), false);
+        let mut builder = Builder::new(cx, func, llfunc);
 
         let handle = unsafe { llvm::LLVMGetParam(llfunc, 0) };
         let instance = unsafe { llvm::LLVMGetParam(llfunc, 1) };
@@ -104,7 +111,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
         let flags = MemLoc::struct_gep(sim_info, sim_info_ty, cx.ty_int(), 5, cx);
 
-        let ret_flags = builder.ret_allocated.unwrap();
+        let ret_flags = unsafe { builder.alloca(cx.ty_int()) };
         unsafe { builder.store(ret_flags, cx.const_int(0)) };
 
         let connected_ports = unsafe { inst_data.load_connected_ports(&builder, instance) };
@@ -295,7 +302,12 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                         .get_func_by_name("lim_discontinuity")
                         .expect("stdlib function lim_discontinuity is missing");
                     let fun_ty = cx.ty_func(&[cx.ty_ptr()], cx.ty_void());
-                    CallbackFun::Prebuilt(BuiltCallbackFun { fun_ty, fun, state: Box::new([ret_flags]), num_state: 0 })
+                    CallbackFun::Prebuilt(BuiltCallbackFun {
+                        fun_ty,
+                        fun,
+                        state: Box::new([ret_flags]),
+                        num_state: 0,
+                    })
                 }
                 CallBackKind::Analysis => {
                     let fun = builder
@@ -303,8 +315,17 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                         .get_func_by_name("analysis")
                         .expect("stdlib function analysis is missing");
                     let fun_ty = cx.ty_func(&[cx.ty_ptr(), cx.ty_ptr()], cx.ty_int());
-                    CallbackFun::Prebuilt(BuiltCallbackFun { fun_ty, fun, state: Box::new([sim_info]), num_state: 0 })
+                    CallbackFun::Prebuilt(BuiltCallbackFun {
+                        fun_ty,
+                        fun,
+                        state: Box::new([sim_info]),
+                        num_state: 0,
+                    })
                 }
+                CallBackKind::Abort => CallbackFun::Inline {
+                    builder: Box::new(AbortCallback),
+                    state: Box::new([ret_flags, llfunc]),
+                },
                 _ => continue,
             };
             builder.callbacks[func] = Some(cb);
@@ -366,7 +387,8 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
             inst_data.store_bound_step(instance, &builder);
 
-            builder.ret();
+            let ret_flags = builder.load(cx.ty_int(), ret_flags);
+            builder.ret(ret_flags);
         }
 
         llfunc

@@ -1,5 +1,4 @@
 use hir_lower::{CallBackKind, ParamInfoKind, ParamKind, PlaceKind};
-
 use llvm::IntPredicate::IntSLT;
 use llvm::{
     LLVMAppendBasicBlockInContext, LLVMBuildBr, LLVMBuildCondBr, LLVMBuildRetVoid,
@@ -7,11 +6,58 @@ use llvm::{
     UNNAMED,
 };
 use mir::ControlFlowGraph;
-use mir_llvm::{Builder, BuilderVal, BuiltCallbackFun, CallbackFun, CodegenCx, InlineCallbackBuilder};
+use mir_llvm::{
+    Builder, BuilderVal, BuiltCallbackFun, CallbackFun, CodegenCx, InlineCallbackBuilder,
+};
 use sim_back::SimUnknownKind;
 
 use crate::compilation_unit::{general_callbacks, OsdiCompilationUnit};
 use crate::inst_data::OsdiInstanceParam;
+
+struct VoidAbortCallback;
+
+impl<'ll> InlineCallbackBuilder<'ll> for VoidAbortCallback {
+    fn build_inline(
+        &self,
+        builder: &Builder<'_, '_, 'll>,
+        state: &Box<[&'ll llvm::Value]>,
+    ) -> &'ll llvm::Value {
+        let cx = builder.cx;
+        unsafe {
+            // state[0] .. ret_flags value
+            // state[1] .. pointer where to store it at exit
+            // state[2] .. llfunc prototype
+
+            // Store ret_flags in flags field
+            let ret_flags = builder.load(cx.ty_int(), state[0]);
+            builder.store(state[1], ret_flags);
+
+            // Create return and continue block
+            let ret_block = LLVMAppendBasicBlockInContext(cx.llcx, state[2], UNNAMED);
+            let cont_block = LLVMAppendBasicBlockInContext(cx.llcx, state[2], UNNAMED);
+
+            // Branch always to return block
+            let cond = cx.const_bool(true);
+            LLVMBuildCondBr(builder.llbuilder, cond, ret_block, cont_block);
+
+            // Add ret_void to return block
+            LLVMPositionBuilderAtEnd(builder.llbuilder, ret_block);
+            builder.ret_void();
+
+            // Position builder at start of continue block (will be discarded after optimization)
+            LLVMPositionBuilderAtEnd(builder.llbuilder, cont_block);
+        }
+        cx.const_int(0)
+    }
+
+    fn return_type(
+        &self,
+        builder: &Builder<'_, '_, 'll>,
+        _state: &Box<[&'ll llvm::Value]>,
+    ) -> &'ll llvm::Type {
+        builder.cx.ty_int()
+    }
+}
 
 impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
     fn mark_collapsed(&self) -> (&'ll llvm::Value, &'ll llvm::Type) {
@@ -66,7 +112,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
         let mut cfg = ControlFlowGraph::new();
         cfg.compute(func);
-        let mut builder = Builder::new(cx, func, llfunc, Some(cx.ty_int()), true);
+        let mut builder = Builder::new(cx, func, llfunc);
         let postorder: Vec<_> = cfg.postorder(func).collect();
 
         let handle = unsafe { llvm::LLVMGetParam(llfunc, 0) };
@@ -123,8 +169,6 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let err_len = unsafe { builder.struct_gep(tys.osdi_init_info, res, 1) };
         let err_ptr = unsafe { builder.struct_gep(tys.osdi_init_info, res, 2) };
 
-        builder.ret_store_ptr.set(Some(flags));
-
         let nullptr = cx.const_null_ptr();
         let zero = cx.const_unsigned_int(0);
 
@@ -137,7 +181,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
         let invalid_param_err = Self::invalid_param_err(cx);
 
-        let ret_flags = builder.ret_allocated.unwrap();
+        let ret_flags = unsafe { builder.alloca(cx.ty_int()) };
         unsafe { builder.store(ret_flags, cx.const_int(0)) };
 
         builder.callbacks = general_callbacks(intern, &mut builder, ret_flags, handle, simparam);
@@ -186,8 +230,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         }
 
         builder.select_bb(exit_bb);
-        unsafe { 
-            builder.ret_void() 
+        unsafe {
+            let ret_flags_val = builder.load(cx.ty_int(), ret_flags);
+            builder.store(flags, ret_flags_val);
+            builder.ret_void()
         }
 
         llfunc
@@ -223,7 +269,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
 
         let func = &module.init.func;
         let intern = &module.init.intern;
-        let mut builder = Builder::new(cx, func, llfunc, Some(cx.ty_int()), true);
+        let mut builder = Builder::new(cx, func, llfunc);
 
         let handle = unsafe { llvm::LLVMGetParam(llfunc, 0) };
         let instance = unsafe { llvm::LLVMGetParam(llfunc, 1) };
@@ -233,7 +279,7 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let simparam = unsafe { llvm::LLVMGetParam(llfunc, 5) };
         let res = unsafe { llvm::LLVMGetParam(llfunc, 6) };
 
-        let ret_flags = builder.ret_allocated.unwrap();
+        let ret_flags = unsafe { builder.alloca(cx.ty_int()) };
         unsafe { builder.store(ret_flags, cx.const_int(0)) };
 
         builder.params = vec![BuilderVal::Undef; intern.params.len()].into();
@@ -327,8 +373,6 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
         let nullptr = cx.const_null_ptr();
         let zero = cx.const_unsigned_int(0);
 
-        builder.ret_store_ptr.set(Some(flags));
-
         unsafe {
             builder.store(err_ptr, nullptr);
             builder.store(err_len, zero);
@@ -375,6 +419,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
                         num_state: 2,
                     })
                 }
+                CallBackKind::Abort => CallbackFun::Inline {
+                    builder: Box::new(VoidAbortCallback),
+                    state: Box::new([ret_flags, flags, llfunc]),
+                },
                 _ => continue,
             };
 
@@ -430,8 +478,10 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             }
         }
 
-        unsafe { 
-            builder.ret_void() 
+        unsafe {
+            let ret_flags_val = builder.load(cx.ty_int(), ret_flags);
+            builder.store(flags, ret_flags_val);
+            builder.ret_void()
         }
 
         for (&val, &slot) in module.init.cached_vals.iter() {
@@ -442,16 +492,6 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             let bb = func.layout.inst_block(inst).unwrap();
             builder.select_bb_before_terminator(bb);
             unsafe {
-                match builder.values[val] {
-                    BuilderVal::Undef => {
-                        // Unconditional $fatal() eliminates some values so that 
-                        // the corresponding cache entries are left undefined. 
-                        // Avoid panic in get() and emit a warning. 
-                        println!("Warning: setup MIR {} undefined in cache", val);
-                        continue;
-                    }
-                    _ => {}
-                }
                 let val = builder.values[val].get(&builder);
                 inst_data.store_cache_slot(module, builder.llbuilder, slot, instance, val)
             }
