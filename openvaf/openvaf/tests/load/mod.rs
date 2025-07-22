@@ -158,8 +158,10 @@ impl OsdiModel {
         };
 
         let mut res = OsdiInitInfo { flags: 0, num_errors: 0, errors: ptr::null_mut() };
+        let mut handle_buffer: [u8; 1024] = [0; 1024];
+        let handle_ptr = handle_buffer.as_mut_ptr() as *mut c_void;
         self.descriptor.setup_model(
-            b"foo\0".as_ptr() as *mut c_void,
+            handle_ptr,
             self.data,
             &mut sim_params,
             &mut res,
