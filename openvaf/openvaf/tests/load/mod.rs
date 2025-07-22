@@ -396,18 +396,6 @@ pub unsafe fn load_osdi_lib(path: &Utf8Path) -> Result<LoadedOsdiLib> {
     })
 }
 
-/// Backwards compatibility function that returns the descriptors directly.
-/// WARNING: The caller must ensure the returned slice is not used after the LoadedOsdiLib is dropped.
-/// This function is deprecated - use load_osdi_lib() instead.
-#[deprecated(note = "Use load_osdi_lib() and keep the LoadedOsdiLib alive instead")]
-pub unsafe fn load_osdi_lib_legacy(path: &Utf8Path) -> Result<&'static [OsdiDescriptor]> {
-    let loaded_lib = load_osdi_lib(path)?;
-    let descriptors = loaded_lib.descriptors_static();
-    // We intentionally leak the LoadedOsdiLib here for backwards compatibility
-    std::mem::forget(loaded_lib);
-    Ok(descriptors)
-}
-
 unsafe extern "C" fn osdi_log(handle: *mut c_void, msg: *const c_char, lvl: u32) {
     let _ = catch_unwind(|| osdi_log_impl(handle, msg, lvl));
 }
