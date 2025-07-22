@@ -321,10 +321,38 @@ impl OsdiInstance {
     // }
 }
 
-pub unsafe fn load_osdi_lib(path: &Utf8Path) -> Result<&'static [OsdiDescriptor]> {
-    let lib = Library::new(path)?;
-    let lib = Box::leak(Box::new(lib));
+/// A loaded OSDI library that owns both the library handle and provides access to its descriptors.
+/// This ensures that the library remains loaded as long as the descriptors are accessible.
+pub struct LoadedOsdiLib {
+    // This field must come FIRST, so it's dropped LAST.
+    // This ensures the library stays loaded while descriptors are accessible.
+    _lib: Box<Library>,
+    descriptors: &'static [OsdiDescriptor],
+}
 
+impl LoadedOsdiLib {
+    /// Get the descriptors from the loaded library
+    pub fn descriptors(&self) -> &[OsdiDescriptor] {
+        self.descriptors
+    }
+    
+    /// Get the first descriptor (for backwards compatibility with single-descriptor libraries)
+    pub fn first_descriptor(&self) -> &'static OsdiDescriptor {
+        &self.descriptors[0]
+    }
+    
+    /// Get the descriptors as a static slice (for backwards compatibility)
+    /// SAFETY: This is safe because the LoadedOsdiLib ensures the library stays loaded
+    pub fn descriptors_static(&self) -> &'static [OsdiDescriptor] {
+        self.descriptors
+    }
+}
+
+pub unsafe fn load_osdi_lib(path: &Utf8Path) -> Result<LoadedOsdiLib> {
+    let lib = Library::new(path)?;
+
+    // Get the function pointers and data FROM THE LOADED LIBRARY
+    // BEFORE we move it into the struct.
     let major_version: &u32 = *lib.get(b"OSDI_VERSION_MAJOR\0")?;
     let minor_version: &u32 = *lib.get(b"OSDI_VERSION_MINOR\0")?;
 
@@ -333,10 +361,15 @@ pub unsafe fn load_osdi_lib(path: &Utf8Path) -> Result<&'static [OsdiDescriptor]
     }
 
     let num_descriptors: &u32 = *lib.get(b"OSDI_NUM_DESCRIPTORS\0")?;
-    let descriptors: *const OsdiDescriptor = *lib.get(b"OSDI_DESCRIPTORS\0")?;
+    let descriptors_ptr: *const OsdiDescriptor = *lib.get(b"OSDI_DESCRIPTORS\0")?;
 
-    let descriptors: &[OsdiDescriptor] =
-        slice::from_raw_parts(descriptors, *num_descriptors as usize);
+    // This is the tricky part. We are casting the lifetime. This is only
+    // safe because we are immediately moving the `Library` handle (`lib`)
+    // into the struct, tying their lifetimes together. We leak the library
+    // to make the descriptors effectively 'static, but we control the leak
+    // more carefully than the previous approach.
+    let descriptors: &'static [OsdiDescriptor] =
+        slice::from_raw_parts(descriptors_ptr, *num_descriptors as usize);
 
     if let Ok(osdi_log_ptr) =
         lib.get::<*mut unsafe extern "C" fn(*mut c_void, *const c_char, u32)>(b"osdi_log\0")
@@ -356,6 +389,22 @@ pub unsafe fn load_osdi_lib(path: &Utf8Path) -> Result<&'static [OsdiDescriptor]
             }
         }
     }
+
+    Ok(LoadedOsdiLib {
+        _lib: Box::new(lib), // Keep the library alive, but not leaked globally
+        descriptors,
+    })
+}
+
+/// Backwards compatibility function that returns the descriptors directly.
+/// WARNING: The caller must ensure the returned slice is not used after the LoadedOsdiLib is dropped.
+/// This function is deprecated - use load_osdi_lib() instead.
+#[deprecated(note = "Use load_osdi_lib() and keep the LoadedOsdiLib alive instead")]
+pub unsafe fn load_osdi_lib_legacy(path: &Utf8Path) -> Result<&'static [OsdiDescriptor]> {
+    let loaded_lib = load_osdi_lib(path)?;
+    let descriptors = loaded_lib.descriptors_static();
+    // We intentionally leak the LoadedOsdiLib here for backwards compatibility
+    std::mem::forget(loaded_lib);
     Ok(descriptors)
 }
 

@@ -10,13 +10,13 @@ use openvaf::{CompilationDestination, CompilationTermination};
 use stdx::{ignore_dev_tests, openvaf_test_data, project_root};
 use target::spec::Target;
 
-use crate::load::{load_osdi_lib, EvalFlags, OsdiDescriptor};
+use crate::load::{load_osdi_lib, LoadedOsdiLib, EvalFlags};
 use crate::mock_sim::{MockSimulation, ALPHA};
 
 mod load;
 mod mock_sim;
 
-fn compile_and_load(root_file: &Utf8Path) -> &'static OsdiDescriptor {
+fn compile_and_load(root_file: &Utf8Path) -> LoadedOsdiLib {
     let openvaf_opts = openvaf::Opts {
         defines: Vec::new(),
         codegen_opts: Vec::new(),
@@ -44,9 +44,11 @@ fn compile_and_load(root_file: &Utf8Path) -> &'static OsdiDescriptor {
             panic!("openvaf: compilation of {root_file} failed");
         }
     };
-    let libs = unsafe { load_osdi_lib(&lib_file).unwrap() };
-    assert_eq!(libs.len(), 1);
-    &libs[0]
+    
+    // Return the owned LoadedOsdiLib
+    let loaded_lib = unsafe { load_osdi_lib(&lib_file).unwrap() };
+    assert_eq!(loaded_lib.descriptors().len(), 1);
+    loaded_lib
 }
 
 // fn integration_test(dir: &str) -> Result {
@@ -61,14 +63,16 @@ fn compile_and_load(root_file: &Utf8Path) -> &'static OsdiDescriptor {
 fn integration_test(dir: &Path) -> Result {
     let name = dir.file_name().unwrap().to_str().unwrap().to_lowercase();
     let main_file = dir.join(format!("{name}.va"));
-    test_descriptor(&main_file)?;
+    let _loaded_lib = test_descriptor(&main_file)?; // Keep the library alive
     Ok(())
 }
 
-fn test_descriptor(main_file: &Path) -> Result<&'static OsdiDescriptor> {
+fn test_descriptor(main_file: &Path) -> Result<LoadedOsdiLib> {
     let main_file: &Utf8Path = main_file.try_into().unwrap();
     let name = main_file.file_stem().unwrap();
-    let desc = compile_and_load(main_file);
+    let loaded_lib = compile_and_load(main_file);
+    let desc = loaded_lib.first_descriptor();
+    
     let expect = format!("{desc:?}");
     let test_dir = openvaf_test_data("osdi");
     expect_file![test_dir.join(format!("{name}.snap"))].assert_eq(&expect);
@@ -76,7 +80,7 @@ fn test_descriptor(main_file: &Path) -> Result<&'static OsdiDescriptor> {
     default_model.process_params()?;
     let mut instance = default_model.new_instance();
     instance.process_params(&default_model, desc.num_terminals, 300.0)?;
-    Ok(desc)
+    Ok(loaded_lib)
 }
 
 macro_rules! assert_approx_eq {
@@ -147,7 +151,9 @@ fn test_limit() -> Result<()> {
     };
 
     // compile model and setup simulation
-    let desc = test_descriptor(&openvaf_test_data("osdi").join("diode_lim.va"))?;
+    let loaded_lib = test_descriptor(&openvaf_test_data("osdi").join("diode_lim.va"))?;
+    let desc = loaded_lib.first_descriptor();
+    
     let model = desc.new_model();
     model.set_real_param(1, IS);
     model.set_real_param(5, CJ0);
@@ -196,7 +202,9 @@ fn test_noise() -> Result<()> {
     const V_AC: f64 = 13.0;
 
     // compile model and setup simulation
-    let desc = test_descriptor(&openvaf_test_data("osdi").join("noise.va"))?;
+    let loaded_lib = test_descriptor(&openvaf_test_data("osdi").join("noise.va"))?;
+    let desc = loaded_lib.first_descriptor();
+    
     let model = desc.new_model();
     model.set_real_param(0, MFACTOR);
     model.set_real_param(1, PWR);
