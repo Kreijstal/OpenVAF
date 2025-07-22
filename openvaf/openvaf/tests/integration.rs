@@ -10,7 +10,7 @@ use openvaf::{CompilationDestination, CompilationTermination};
 use stdx::{ignore_dev_tests, openvaf_test_data, project_root};
 use target::spec::Target;
 
-use crate::load::{load_osdi_lib, LoadedOsdiLib, LoadedDescriptor, EvalFlags};
+use crate::load::{load_osdi_lib, EvalFlags, LoadedDescriptor, LoadedOsdiLib};
 use crate::mock_sim::{MockSimulation, ALPHA};
 
 mod load;

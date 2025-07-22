@@ -348,12 +348,9 @@ impl LoadedDescriptor {
             // ensuring the library stays loaded as long as the descriptor is used.
             std::mem::transmute(&loaded_lib.descriptors()[index])
         };
-        Self {
-            _lib: loaded_lib,
-            descriptor,
-        }
+        Self { _lib: loaded_lib, descriptor }
     }
-    
+
     pub fn descriptor(&self) -> &'static OsdiDescriptor {
         self.descriptor
     }
@@ -361,7 +358,7 @@ impl LoadedDescriptor {
 
 impl std::ops::Deref for LoadedDescriptor {
     type Target = OsdiDescriptor;
-    
+
     fn deref(&self) -> &Self::Target {
         self.descriptor
     }
@@ -403,7 +400,7 @@ pub unsafe fn load_osdi_lib(path: &Utf8Path) -> Result<LoadedOsdiLib> {
             }
         }
     }
-    
+
     Ok(LoadedOsdiLib {
         _lib: lib, // `lib` is moved here, tying its lifetime to the descriptors
         descriptors,
