@@ -157,6 +157,10 @@ jobs:
     - name: Build MSYS2 package
       shell: msys2 {0}
       run: |
+        # Ensure LLVM tools are in PATH for the build
+        export PATH="/usr/bin:/mingw64/bin:$PATH"
+        which llvm-lib || echo "llvm-lib not found in PATH"
+        
         # Create build directory
         mkdir -p pkg/src
         

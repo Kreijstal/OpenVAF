@@ -26,6 +26,11 @@ build() {
     export RUSTFLAGS="-C target-feature=+crt-static"
     export PKG_CONFIG_ALLOW_CROSS=1
     
+    # Ensure LLVM tools are available for Windows targets
+    if [[ "${MINGW_CHOST}" == *"-w64-mingw32" ]]; then
+        export PATH="${MINGW_PREFIX}/bin:$PATH"
+    fi
+    
     # Build the project in release mode
     cargo build --release --verbose
 }
