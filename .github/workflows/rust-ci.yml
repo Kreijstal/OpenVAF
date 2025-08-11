@@ -119,6 +119,8 @@ jobs:
           cc:p
           python:p
           sccache:p
+          pkg-config:p
+          zstd:p
     #- name: Configure Git to use Schannel
     #  shell: msys2 {0}
     #  run: git config --global http.sslBackend schannel
@@ -152,6 +154,29 @@ jobs:
     - name: Run tests
       shell: msys2 {0}
       run: cargo test --release
+    - name: Build MSYS2 package
+      shell: msys2 {0}
+      run: |
+        # Ensure LLVM tools are in PATH for the build
+        export PATH="/usr/bin:/mingw64/bin:$PATH"
+        which llvm-lib || echo "llvm-lib not found in PATH"
+        
+        # Create build directory
+        mkdir -p pkg/src
+        
+        # Copy source to build directory (PKGBUILD expects source in parent of srcdir)
+        cp -r . pkg/
+        
+        # Build package using makepkg
+        cd pkg
+        makepkg --noconfirm --syncdeps
+    - name: Upload MSYS2 package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: openvaf-${{ matrix.sys }}-package
+        path: pkg/*.pkg.tar.zst
+        compression-level: 9
+        retention-days: 30
 
   macos-build-test:
     strategy:

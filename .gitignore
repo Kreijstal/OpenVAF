@@ -35,3 +35,6 @@ markus_notes
 .env
 **.swp
 **.swo
+# MSYS2 package build artifacts
+pkg/
+*.pkg.tar.zst
