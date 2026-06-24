@@ -289,6 +289,11 @@ impl Ctx {
                         self.lower_stmt(stmt, dst);
                     }
                 }
+                ast::ModuleItem::ProceduralBlock(block) => {
+                    if let Some(stmt) = block.stmt() {
+                        self.lower_stmt(stmt, dst);
+                    }
+                }
                 ast::ModuleItem::VarDecl(var) => {
                     self.lower_var(var, dst);
                 }

@@ -421,6 +421,9 @@ pub struct MirBuilder<'a> {
     tag_writes: bool,
     ctx: Option<&'a mut FunctionBuilderContext>,
     lower_equations: bool,
+    /// When set, lower the module's imperative `initial`/`final` procedural body
+    /// (the standalone runner lane) instead of the analog DAE bodies.
+    procedural: bool,
 }
 
 impl<'a> MirBuilder<'a> {
@@ -439,7 +442,15 @@ impl<'a> MirBuilder<'a> {
             ctx: None,
             lower_equations: false,
             tag_writes: false,
+            procedural: false,
         }
+    }
+
+    /// Lower the module's standalone `initial`/`final` procedural body instead of the
+    /// analog DAE bodies. Used by the VerilogA runner (`openvaf-r run`).
+    pub fn with_procedural(mut self) -> Self {
+        self.procedural = true;
+        self
     }
 
     pub fn tag_reads(&mut self, var: Variable) -> bool {
@@ -494,19 +505,29 @@ impl<'a> MirBuilder<'a> {
         let builder: FunctionBuilder<'_> =
             FunctionBuilder::new(&mut func, literals, ctx, self.tag_writes);
         let path = self.module.name(self.db);
-        let analog_initial_body = self.module.analog_initial_block(self.db);
-        let analog_body = self.module.analog_block(self.db);
 
         let mut ctx = LoweringCtx::new(self.db, builder, !self.lower_equations, &mut interner)
             .with_tagged_vars(self.tagged_reads);
-        let mut body_ctx =
-            BodyLoweringCtx { ctx: &mut ctx, body: analog_initial_body.borrow(), path: &path };
 
-        // lower analog initial blocks first
-        body_ctx.lower_entry_stmts();
-        // ... and normal analog blocks afterwards
-        body_ctx.body = analog_body.borrow();
-        body_ctx.lower_entry_stmts();
+        if self.procedural {
+            // Runner lane: lower only the imperative procedural body (all `initial`
+            // blocks in source order, then all `final` blocks). No analog/DAE bodies.
+            let procedural_body = self.module.procedural_block(self.db);
+            let mut body_ctx =
+                BodyLoweringCtx { ctx: &mut ctx, body: procedural_body.borrow(), path: &path };
+            body_ctx.lower_entry_stmts();
+        } else {
+            let analog_initial_body = self.module.analog_initial_block(self.db);
+            let analog_body = self.module.analog_block(self.db);
+            let mut body_ctx =
+                BodyLoweringCtx { ctx: &mut ctx, body: analog_initial_body.borrow(), path: &path };
+
+            // lower analog initial blocks first
+            body_ctx.lower_entry_stmts();
+            // ... and normal analog blocks afterwards
+            body_ctx.body = analog_body.borrow();
+            body_ctx.lower_entry_stmts();
+        }
 
         for var in self.required_vars {
             ctx.dec_place(PlaceKind::Var(var));

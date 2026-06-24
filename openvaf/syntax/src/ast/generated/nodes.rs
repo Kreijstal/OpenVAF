@@ -416,6 +416,16 @@ impl AnalogBehaviour {
     pub fn stmt(&self) -> Option<Stmt> { support::child(&self.syntax) }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ProceduralBlock {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::AttrsOwner for ProceduralBlock {}
+impl ProceduralBlock {
+    pub fn initial_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![initial]) }
+    pub fn final_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![final]) }
+    pub fn stmt(&self) -> Option<Stmt> { support::child(&self.syntax) }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Function {
     pub(crate) syntax: SyntaxNode,
 }
@@ -584,6 +594,7 @@ pub enum ModuleItem {
     BodyPortDecl(BodyPortDecl),
     NetDecl(NetDecl),
     AnalogBehaviour(AnalogBehaviour),
+    ProceduralBlock(ProceduralBlock),
     Function(Function),
     BranchDecl(BranchDecl),
     VarDecl(VarDecl),
@@ -1059,6 +1070,17 @@ impl AstNode for AnalogBehaviour {
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
+impl AstNode for ProceduralBlock {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == PROCEDURAL_BLOCK }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
 impl AstNode for Function {
     fn can_cast(kind: SyntaxKind) -> bool { kind == FUNCTION }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
@@ -1409,6 +1431,9 @@ impl From<NetDecl> for ModuleItem {
 impl From<AnalogBehaviour> for ModuleItem {
     fn from(node: AnalogBehaviour) -> ModuleItem { ModuleItem::AnalogBehaviour(node) }
 }
+impl From<ProceduralBlock> for ModuleItem {
+    fn from(node: ProceduralBlock) -> ModuleItem { ModuleItem::ProceduralBlock(node) }
+}
 impl From<Function> for ModuleItem {
     fn from(node: Function) -> ModuleItem { ModuleItem::Function(node) }
 }
@@ -1427,8 +1452,8 @@ impl From<AliasParam> for ModuleItem {
 impl AstNode for ModuleItem {
     fn can_cast(kind: SyntaxKind) -> bool {
         match kind {
-            BODY_PORT_DECL | NET_DECL | ANALOG_BEHAVIOUR | FUNCTION | BRANCH_DECL | VAR_DECL
-            | PARAM_DECL | ALIAS_PARAM => true,
+            BODY_PORT_DECL | NET_DECL | ANALOG_BEHAVIOUR | PROCEDURAL_BLOCK | FUNCTION
+            | BRANCH_DECL | VAR_DECL | PARAM_DECL | ALIAS_PARAM => true,
             _ => false,
         }
     }
@@ -1437,6 +1462,7 @@ impl AstNode for ModuleItem {
             BODY_PORT_DECL => ModuleItem::BodyPortDecl(BodyPortDecl { syntax }),
             NET_DECL => ModuleItem::NetDecl(NetDecl { syntax }),
             ANALOG_BEHAVIOUR => ModuleItem::AnalogBehaviour(AnalogBehaviour { syntax }),
+            PROCEDURAL_BLOCK => ModuleItem::ProceduralBlock(ProceduralBlock { syntax }),
             FUNCTION => ModuleItem::Function(Function { syntax }),
             BRANCH_DECL => ModuleItem::BranchDecl(BranchDecl { syntax }),
             VAR_DECL => ModuleItem::VarDecl(VarDecl { syntax }),
@@ -1451,6 +1477,7 @@ impl AstNode for ModuleItem {
             ModuleItem::BodyPortDecl(it) => &it.syntax,
             ModuleItem::NetDecl(it) => &it.syntax,
             ModuleItem::AnalogBehaviour(it) => &it.syntax,
+            ModuleItem::ProceduralBlock(it) => &it.syntax,
             ModuleItem::Function(it) => &it.syntax,
             ModuleItem::BranchDecl(it) => &it.syntax,
             ModuleItem::VarDecl(it) => &it.syntax,
@@ -1798,6 +1825,11 @@ impl std::fmt::Display for NetDecl {
     }
 }
 impl std::fmt::Display for AnalogBehaviour {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for ProceduralBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }

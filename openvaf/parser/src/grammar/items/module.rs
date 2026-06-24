@@ -5,6 +5,7 @@ const MODULE_ITEM_RECOVERY: TokenSet = DIRECTION_TS.union(TokenSet::new(&[
     NET_TYPE,
     ANALOG_KW,
     INITIAL_KW,
+    FINAL_KW,
     BRANCH_KW,
     STRING_KW,
     REAL_KW,
@@ -116,6 +117,13 @@ fn module_items(p: &mut Parser) {
                 stmt_with_attrs(p);
                 m.complete(p, ANALOG_BEHAVIOUR);
             }
+            // Standalone (non-analog) procedural blocks: `initial <stmt>` / `final <stmt>`.
+            // These are imperative blocks executed by the standalone VerilogA runner.
+            INITIAL_KW | FINAL_KW => {
+                p.bump_any();
+                stmt_with_attrs(p);
+                m.complete(p, PROCEDURAL_BLOCK);
+            }
             NET_TYPE => {
                 net_decl::<true>(p, m);
             }
@@ -147,6 +155,7 @@ fn module_items(p: &mut Parser) {
                         PORT_DECL,
                         NET_DECL,
                         ANALOG_BEHAVIOUR,
+                        PROCEDURAL_BLOCK,
                     ]);
                     p.error(err);
                     p.bump_any();

@@ -1058,7 +1058,9 @@ dependencies = [
  "expect-test",
  "float-cmp",
  "hir",
+ "hir_lower",
  "indexmap 2.14.0",
+ "lasso",
  "libc",
  "libloading",
  "linker",
@@ -1068,6 +1070,8 @@ dependencies = [
  "llvm-sys 211.0.1",
  "md5",
  "mini_harness",
+ "mir",
+ "mir_interpret",
  "mir_llvm",
  "osdi",
  "paths",
@@ -1076,6 +1080,7 @@ dependencies = [
  "target",
  "termcolor",
  "tokens",
+ "typed-index-collections",
 ]
 
 [[package]]

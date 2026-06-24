@@ -17,7 +17,7 @@ pub enum ParamInfoKind {
     MaxExclusive,
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum RetFlag {
     Abort,
     Finish,

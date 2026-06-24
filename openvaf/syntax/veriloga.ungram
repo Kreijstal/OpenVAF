@@ -190,6 +190,7 @@ ModuleItem =
   BodyPortDecl
 | NetDecl
 | AnalogBehaviour
+| ProceduralBlock
 | Function
 | BranchDecl
 | VarDecl
@@ -202,6 +203,9 @@ ModulePortKind = PortDecl| Name
 
 AnalogBehaviour =
   AttrList* 'analog' 'initial'? Stmt
+
+ProceduralBlock =
+  AttrList* ('initial' | 'final') Stmt
 
 VarDecl =
   AttrList* Type (Var (',' Var)*) ';'

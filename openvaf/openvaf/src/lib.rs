@@ -28,6 +28,9 @@ pub use target::spec::{get_target_names, Target};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 mod cache;
+mod run;
+
+pub use run::run;
 
 #[derive(Debug, Clone)]
 pub enum CompilationDestination {

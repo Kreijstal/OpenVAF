@@ -14,7 +14,8 @@ use crate::item_tree::{DisciplineAttr, ItemTreeId, ItemTreeNode, NatureAttr};
 use crate::nameres::{DefMapSource, LocalScopeId};
 use crate::{
     DefWithBodyId, DisciplineAttrLoc, DisciplineLoc, Expr, ExprId, FunctionLoc, Literal, Lookup,
-    ModuleLoc, NatureAttrLoc, NatureLoc, ParamId, ParamLoc, ScopeId, Stmt, StmtId, Type, VarLoc,
+    ModuleBodyKind, ModuleLoc, NatureAttrLoc, NatureLoc, ParamId, ParamLoc, ScopeId, Stmt, StmtId,
+    Type, VarLoc,
 };
 
 mod lower;
@@ -67,7 +68,7 @@ impl Body {
                 let (body, sm, _) = db.param_body_with_sourcemap(param);
                 return (body, sm);
             }
-            DefWithBodyId::ModuleId { initial, module } => {
+            DefWithBodyId::ModuleId { kind, module } => {
                 let ModuleLoc { scope, id: item_tree } = module.lookup(db);
 
                 let ast_id = tree[item_tree].ast_id();
@@ -82,10 +83,20 @@ impl Body {
                     curr_scope,
                     registry: &registry,
                 };
-                body.entry_stmts = if initial {
-                    ast.analog_initial_behaviour().map(|stmt| ctx.collect_stmt(stmt)).collect()
-                } else {
-                    ast.analog_behaviour().map(|stmt| ctx.collect_stmt(stmt)).collect()
+                body.entry_stmts = match kind {
+                    ModuleBodyKind::AnalogInitial => {
+                        ast.analog_initial_behaviour().map(|stmt| ctx.collect_stmt(stmt)).collect()
+                    }
+                    ModuleBodyKind::Analog => {
+                        ast.analog_behaviour().map(|stmt| ctx.collect_stmt(stmt)).collect()
+                    }
+                    // Procedural runner lane: all `initial` blocks (source order) then
+                    // all `final` blocks, as one imperative sequence.
+                    ModuleBodyKind::Procedural => ast
+                        .initial_behaviour()
+                        .chain(ast.final_behaviour())
+                        .map(|stmt| ctx.collect_stmt(stmt))
+                        .collect(),
                 };
             }
 
