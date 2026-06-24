@@ -716,9 +716,14 @@ impl BodyLoweringCtx<'_, '_, '_> {
 
                 res
             }*/
-            BuiltIn::slew | BuiltIn::transition | BuiltIn::limit | BuiltIn::absdelay => {
-                self.lower_expr(args[0])
+            BuiltIn::transition => {
+                // Instantaneous approximation: ignore delay/rise/fall and return the
+                // target value. `transition`'s first argument is typed Integer but the
+                // operator returns Real, so cast to keep the MIR well-typed.
+                let val = self.lower_expr(args[0]);
+                self.ctx.insert_cast(val, &Type::Integer, &Type::Real)
             }
+            BuiltIn::slew | BuiltIn::limit | BuiltIn::absdelay => self.lower_expr(args[0]),
 
             _ => unreachable!(),
         }
