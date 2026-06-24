@@ -1003,7 +1003,8 @@ impl Ctx<'_> {
             }
         }
 
-        Some(Ty::Val(ty))
+        // An array literal `{e0, e1, ...}` has an array type (element type `ty`).
+        Some(Ty::Val(Type::Array { ty: Box::new(ty), len: args.len() as u32 }))
     }
 
     fn infere_bin_op(
