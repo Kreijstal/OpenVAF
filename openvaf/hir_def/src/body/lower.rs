@@ -186,7 +186,15 @@ impl LowerCtx<'_> {
         } else if event_stmt.final_step_token().is_some() {
             GlobalEvent::FinalStep
         } else {
-            return self.collect_opt_stmt(event_stmt.stmt());
+            // Monitored event (`@(cross(...))` / `@(timer(...))`): preserve it so MIR
+            // lowering can give the variables it assigns cross-timestep retention.
+            let body = self.collect_opt_stmt(event_stmt.stmt());
+            let stmt = Stmt::EventControl { event: Event::Cross, body };
+            return self.alloc_stmt(
+                stmt,
+                AstPtr::new(event_stmt).cast().unwrap(),
+                event_stmt.attrs(),
+            );
         };
 
         let phases = event_stmt.sim_phases().map(|lit| lit.unescaped_value()).collect();

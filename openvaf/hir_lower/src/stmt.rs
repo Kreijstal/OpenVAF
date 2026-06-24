@@ -17,11 +17,39 @@ impl BodyLoweringCtx<'_, '_, '_> {
             Stmt::Expr(expr) => {
                 self.lower_expr(expr);
             }
-            Stmt::EventControl { body, .. } => {
-                // TODO handle porperly
-                self.lower_stmt(body);
+            Stmt::EventControl { event, body } => {
+                // Track `@(initial_step)` so resets of retained (`@cross`) variables
+                // inside it are treated as initial values (read from the retained
+                // state) rather than per-evaluation resets. Other events lower their
+                // body directly; their effect is gated by guards in the body.
+                if matches!(
+                    event,
+                    hir::Event::Global { kind: hir::GlobalEvent::InitialStep, .. }
+                ) {
+                    let prev = self.ctx.in_initial_step;
+                    self.ctx.in_initial_step = true;
+                    self.lower_stmt(body);
+                    self.ctx.in_initial_step = prev;
+                } else {
+                    self.lower_stmt(body);
+                }
             }
             Stmt::Assignment { lhs, rhs } => {
+                // A retained variable's `@(initial_step)` reset is its initial value
+                // (already loaded from the retained state); skip it so it is not
+                // re-applied on every evaluation.
+                if self.ctx.in_initial_step {
+                    let retained = match &lhs {
+                        hir::AssignmentLhs::Variable(var)
+                        | hir::AssignmentLhs::ArrayElement { var, .. } => {
+                            self.ctx.retained_states.contains_key(var)
+                        }
+                        _ => false,
+                    };
+                    if retained {
+                        return;
+                    }
+                }
                 let val_ = self.lower_expr(rhs);
                 match lhs {
                     hir::AssignmentLhs::ArrayElement { var, index } => {

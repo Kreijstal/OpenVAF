@@ -241,6 +241,11 @@ pub struct HirInterner {
     pub tagged_reads: IndexMap<Value, Variable, BuildHasherDefault<FxHasher>>,
     pub implicit_equations: TiVec<ImplicitEquation, ImplicitEquationKind>,
     pub lim_state: TiMap<LimitState, Value, Vec<(Value, bool)>>,
+    /// Limit-state slots that actually back `@(cross)` retained variables (latch
+    /// state stored across timesteps). They reuse the limit state-array machinery
+    /// but carry no limit function, so the limit-specific derivative/value passes
+    /// must skip them.
+    pub retained_lim_states: ahash::AHashSet<LimitState>,
 }
 
 pub type LiveParams<'a> = FilterMap<
@@ -258,6 +263,7 @@ impl Default for HirInterner {
             tagged_reads: IndexMap::with_hasher(BuildHasherDefault::<FxHasher>::default()),
             implicit_equations: TiVec::default(),
             lim_state: TiMap::default(),
+            retained_lim_states: ahash::AHashSet::default(),
         }
     }
 }
@@ -329,7 +335,12 @@ impl HirInterner {
             }
         }
 
-        for (param, vals) in self.lim_state.iter() {
+        for (state, (param, vals)) in self.lim_state.iter_enumerated() {
+            // Retained `@(cross)` slots are not limited node voltages; their key is a
+            // synthetic constant, so skip the limit derivative handling for them.
+            if self.retained_lim_states.contains(&state) {
+                continue;
+            }
             for &(val, neg) in vals {
                 let param = func.dfg.value_def(*param).unwrap_param();
 
