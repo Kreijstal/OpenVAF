@@ -40,12 +40,22 @@ const MODULE_PORTS_RECOVERY: TokenSet = TokenSet::new(&[T![;], T![')'], ENDMODUL
 fn module_ports(p: &mut Parser) {
     while !p.at_ts(MODULE_PORTS_RECOVERY) {
         let m = p.start();
-        if !eat_name(p) {
-            let m = p.start();
+        if eat_name(p) {
+            m.complete(p, MODULE_PORT);
+        } else if p.at_ts(DIRECTION_TS) || p.at(T!["(*"]) {
+            let inner = p.start();
             attrs(p, MODULE_PORTS_RECOVERY.union(DIRECTION_TS));
-            port_decl::<true>(p, m)
+            port_decl::<true>(p, inner);
+            m.complete(p, MODULE_PORT);
+        } else {
+            // Neither a port name nor a port direction. This happens e.g. for the
+            // currently unsupported vectored-node port syntax `inode[0]`. Abandon the
+            // (empty) port node, report an error and recover instead of asserting
+            // inside `port_decl` or producing a childless MODULE_PORT.
+            m.abandon(p);
+            let err = p.unexpected_tokens_msg(vec![IDENT, INPUT_KW, OUTPUT_KW, INOUT_KW]);
+            p.err_recover(err, MODULE_PORTS_RECOVERY.union(TokenSet::unique(T![,])));
         }
-        m.complete(p, MODULE_PORT);
         if !p.at(T![')']) {
             p.expect_with(T![,], &[T![,], T![')']]);
         }
