@@ -391,6 +391,16 @@ impl Ctx<'_> {
             }
             Expr::Array(ref args) if args.is_empty() => Ty::Val(Type::EmptyArray),
             Expr::Array(ref args) => self.infere_array(stmt, args)?,
+            Expr::Index { base, index } => {
+                // The index is an integer value.
+                self.infere_expr(stmt, index);
+                // The result is the element type of the indexed array.
+                let base_ty = self.infere_expr(stmt, base)?;
+                match base_ty.to_value() {
+                    Some(Type::Array { ty, .. }) => Ty::Val(*ty),
+                    _ => Ty::Val(Type::Err),
+                }
+            }
             Expr::Literal(Literal::Float(_)) => Ty::Literal(Type::Real),
             Expr::Literal(Literal::Int(_)) => Ty::Literal(Type::Integer),
             // +/- inf can only appear in param bounds.

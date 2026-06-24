@@ -103,6 +103,8 @@ pub enum SyntaxKind {
     COMMENT,
     ANALOG_BEHAVIOUR,
     PROCEDURAL_BLOCK,
+    INDEX_EXPR,
+    DIMENSION,
     ARG,
     ARG_LIST,
     ARRAY_EXPR,

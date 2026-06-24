@@ -82,6 +82,11 @@ pub enum Expr {
         args: Vec<ExprId>,
     },
     Array(Vec<ExprId>),
+    /// Array element / bus node access `base[index]`.
+    Index {
+        base: ExprId,
+        index: ExprId,
+    },
     Literal(Literal),
 }
 
@@ -99,6 +104,10 @@ impl Expr {
                 f(cond);
                 f(then_val);
                 f(else_val);
+            }
+            Expr::Index { base, index } => {
+                f(base);
+                f(index);
             }
             Expr::Call { args: ref exprs, .. } | Expr::Array(ref exprs) => {
                 for e in exprs {

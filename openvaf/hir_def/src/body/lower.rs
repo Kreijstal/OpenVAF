@@ -77,6 +77,12 @@ impl LowerCtx<'_> {
                 Expr::Select { cond, then_val, else_val }
             }
 
+            ast::Expr::IndexExpr(e) => {
+                let base = self.collect_opt_expr(e.base());
+                let index = self.collect_opt_expr(e.index());
+                Expr::Index { base, index }
+            }
+
             // TODO refactor with if let binding and default case is missing expression
             // BLOCK
             ast::Expr::PathExpr(path) => {

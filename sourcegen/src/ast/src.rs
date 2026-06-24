@@ -102,6 +102,8 @@ pub(crate) const KINDS_SRC: KindsSrc = KindsSrc {
     nodes: &[
         "ANALOG_BEHAVIOUR",
         "PROCEDURAL_BLOCK",
+        "INDEX_EXPR",
+        "DIMENSION",
         "ARG",
         "ARG_LIST",
         "ARRAY_EXPR",

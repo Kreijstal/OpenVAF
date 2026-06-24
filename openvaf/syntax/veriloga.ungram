@@ -108,10 +108,14 @@ Expr =
 | BinExpr
 | ParenExpr
 | ArrayExpr
+| IndexExpr
 | Call
 | SelectExpr
 | PathExpr
 | PortFlow
+
+IndexExpr =
+  Expr '[' Expr ']'
 
 
 PathExpr = Path // Required to allow
@@ -211,7 +215,10 @@ VarDecl =
   AttrList* Type (Var (',' Var)*) ';'
 
 Var =
-  Name ('=' default:Expr)?
+  Name Dimension? ('=' default:Expr)?
+
+Dimension =
+  '[' Expr ':' Expr ']'
 
 
 
