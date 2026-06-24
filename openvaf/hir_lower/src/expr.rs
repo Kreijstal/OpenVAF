@@ -49,6 +49,7 @@ impl BodyLoweringCtx<'_, '_, '_> {
 
                 self.ctx.ins().phi(&[then_src, else_src])
             }
+            Expr::Index { base, index } => self.lower_index(base, index),
             Expr::Call { args, fun } => match fun {
                 ResolvedFun::User { func, limit } => self.lower_user_fun(func, limit, args),
                 ResolvedFun::BuiltIn(builtin) => self.lower_builtin(expr, builtin, args),
@@ -258,6 +259,43 @@ impl BodyLoweringCtx<'_, '_, '_> {
         }
 
         self.ctx.use_place(PlaceKind::FunctionReturn(fun))
+    }
+
+    /// The number of elements of an array-typed variable (0 if not an array).
+    pub(crate) fn array_len(&self, var: hir::Variable) -> u32 {
+        match var.ty(self.ctx.db) {
+            Type::Array { len, .. } => len,
+            _ => 0,
+        }
+    }
+
+    /// Lower an array element read `base[index]`. A fixed-size array is one MIR place
+    /// per element; a constant index reads it directly, a runtime index builds a
+    /// select chain over all elements.
+    fn lower_index(&mut self, base: ExprId, index: ExprId) -> Value {
+        let var = match self.body.get_expr(base) {
+            Expr::Read(Ref::Variable(var)) => var,
+            // only array-variable indexing is supported
+            _ => return F_ZERO,
+        };
+        let len = self.array_len(var);
+        if len == 0 {
+            return F_ZERO;
+        }
+        if let Some(c) = self.body.as_literalint(&index) {
+            let c = (c.max(0) as u32).min(len - 1);
+            return self.ctx.use_place(PlaceKind::VarElement(var, c));
+        }
+        let idx_val = self.lower_expr(index);
+        let mut res = self.ctx.use_place(PlaceKind::VarElement(var, 0));
+        for i in 1..len {
+            let elem = self.ctx.use_place(PlaceKind::VarElement(var, i));
+            let i_const = self.ctx.iconst(i as i32);
+            let cond = self.ctx.ins().ieq(idx_val, i_const);
+            let prev = res;
+            res = self.ctx.make_select(cond, |_s, branch| if branch { elem } else { prev });
+        }
+        res
     }
 
     fn lower_builtin(&mut self, expr: ExprId, builtin: BuiltIn, args: &[ExprId]) -> Value {

@@ -80,6 +80,9 @@ impl<'a, 'c> LoweringCtx<'a, 'c> {
                 | PlaceKind::ParamMax(_) => return place,
 
                 PlaceKind::Var(var) => self.use_param(ParamKind::HiddenState(var)),
+                // Array elements default to 0 (typically written before read in the
+                // initial block; a per-element HiddenState would be more precise).
+                PlaceKind::VarElement(..) => F_ZERO,
                 PlaceKind::ImplicitResidual { .. } | PlaceKind::Contribute { .. } => F_ZERO,
                 PlaceKind::CollapseImplicitEquation(_) => TRUE,
                 PlaceKind::IsVoltageSrc(_) => FALSE,

@@ -144,9 +144,13 @@ impl Body {
                     ctx.collect_expr(expr)
                 } else {
                     let default_val = match db.var_data(var).ty {
-                        Type::Real => Literal::Float(Ieee64::with_float(0.0)),
                         Type::Integer => Literal::Int(0),
-                        _ => unreachable!("invalid var type (TODO arrays)"),
+                        // Arrays have no scalar default (their elements are managed
+                        // per-element during lowering); use 0.0 as a placeholder.
+                        Type::Real | Type::Array { .. } => {
+                            Literal::Float(Ieee64::with_float(0.0))
+                        }
+                        _ => unreachable!("invalid var type"),
                     };
                     ctx.alloc_expr_desugared(Expr::Literal(default_val))
                 };

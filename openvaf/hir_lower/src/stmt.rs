@@ -23,7 +23,12 @@ impl BodyLoweringCtx<'_, '_, '_> {
             }
             Stmt::Assignment { lhs, rhs } => {
                 let val_ = self.lower_expr(rhs);
-                self.ctx.def_place(lhs.into(), val_);
+                match lhs {
+                    hir::AssignmentLhs::ArrayElement { var, index } => {
+                        self.assign_array_element(var, index, val_)
+                    }
+                    _ => self.ctx.def_place(lhs.into(), val_),
+                }
             }
             Stmt::Contribute { kind, branch, rhs } => {
                 self.contribute(kind == ContributeKind::Potential, branch, rhs)
@@ -117,6 +122,29 @@ impl BodyLoweringCtx<'_, '_, '_> {
 
         self.ctx.seal_block(end);
         self.ctx.switch_to_block(end);
+    }
+
+    /// Lower `arr[index] = val`. A constant index writes the element place directly;
+    /// a runtime index conditionally rewrites every element (`elem_i = (index==i) ?
+    /// val : elem_i`), keeping the array in pure SSA.
+    fn assign_array_element(&mut self, var: hir::Variable, index: ExprId, val: mir::Value) {
+        let len = self.array_len(var);
+        if len == 0 {
+            return;
+        }
+        if let Some(c) = self.body.as_literalint(&index) {
+            let c = (c.max(0) as u32).min(len - 1);
+            self.ctx.def_place(PlaceKind::VarElement(var, c), val);
+            return;
+        }
+        let idx_val = self.lower_expr(index);
+        for i in 0..len {
+            let current = self.ctx.use_place(PlaceKind::VarElement(var, i));
+            let i_const = self.ctx.iconst(i as i32);
+            let cond = self.ctx.ins().ieq(idx_val, i_const);
+            let new = self.ctx.make_select(cond, |_s, branch| if branch { val } else { current });
+            self.ctx.def_place(PlaceKind::VarElement(var, i), new);
+        }
     }
 
     fn lower_loop(&mut self, cond: ExprId, lower_body: impl FnOnce(&mut Self)) {

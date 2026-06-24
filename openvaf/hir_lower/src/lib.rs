@@ -154,6 +154,9 @@ impl IdtKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlaceKind {
     Var(Variable),
+    /// Element `idx` of a fixed-size array variable (compile-time array lowered to
+    /// one place per element).
+    VarElement(Variable, u32),
     FunctionReturn(hir::Function),
     FunctionArg(hir::FunctionArg),
     Contribute {
@@ -178,6 +181,10 @@ impl PlaceKind {
     pub fn ty(&self, db: &CompilationDB) -> Type {
         match *self {
             PlaceKind::Var(var) => var.ty(db),
+            PlaceKind::VarElement(var, _) => match var.ty(db) {
+                Type::Array { ty, .. } => *ty,
+                ty => ty,
+            },
             PlaceKind::FunctionReturn(fun) => fun.return_ty(db),
             PlaceKind::FunctionArg(arg) => arg.ty(db),
 
@@ -202,6 +209,9 @@ impl From<hir::AssignmentLhs> for PlaceKind {
             hir::AssignmentLhs::Variable(var) => PlaceKind::Var(var),
             hir::AssignmentLhs::FunctionReturn(fun) => PlaceKind::FunctionReturn(fun),
             hir::AssignmentLhs::FunctionArg(arg) => PlaceKind::FunctionArg(arg),
+            hir::AssignmentLhs::ArrayElement { .. } => {
+                unreachable!("array element assignment is lowered directly, not via PlaceKind")
+            }
         }
     }
 }

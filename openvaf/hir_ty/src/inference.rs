@@ -42,6 +42,8 @@ pub enum ResolvedFun {
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum AssignDst {
     Var(VarId),
+    /// `arr[index] = …` — assignment to an array element.
+    VarElement { var: VarId, index: ExprId },
     FunVar { fun: FunctionId, arg: Option<LocalFunctionArgId> },
     Flow(BranchWrite),
     Potential(BranchWrite),
@@ -92,7 +94,12 @@ impl InferenceResult {
                     .infere_expr(body.entry_stmts[0], db.param_exprs(param).default)
                     .and_then(|ty| ty.to_value()),
             },
-            DefWithBodyId::VarId(var) => Some(db.var_data(var).ty.clone()),
+            DefWithBodyId::VarId(var) => Some(match db.var_data(var).ty.clone() {
+                // An array variable's desugared default is a scalar placeholder; check
+                // it against the element type rather than the array type.
+                Type::Array { ty, .. } => *ty,
+                ty => ty,
+            }),
             _ => None,
         };
 
@@ -195,6 +202,25 @@ impl Ctx<'_> {
         assignment_kind: ast::AssignOp,
     ) -> Option<Type> {
         let e = self.infere_expr(stmt, expr);
+
+        // Array element assignment `den[index] = …`. The base must be an array variable.
+        if let Expr::Index { base, index } = self.body.exprs[expr] {
+            if let Ty::Var(Type::Array { ty, .. }, var) = self.result.expr_types[base].clone() {
+                let elem = *ty;
+                if assignment_kind == ast::AssignOp::Contribute {
+                    self.result.diagnostics.push(InferenceDiagnostic::InvalidAssignDst {
+                        e: expr,
+                        maybe_different_operand: Some(ast::AssignOp::Assign),
+                        assignment_kind,
+                    });
+                } else {
+                    self.result
+                        .assignment_destination
+                        .insert(stmt, AssignDst::VarElement { var, index });
+                }
+                return Some(elem);
+            }
+        }
 
         let (dst, ty) = match e? {
             Ty::Var(ty, var) => (AssignDst::Var(var), ty),
