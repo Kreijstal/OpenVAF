@@ -7,6 +7,7 @@ use basedb::lints::{Lint, LintSrc};
 use basedb::{AttrDiagnostic, LintAttrs};
 use lower::LowerCtx;
 use stdx::Ieee64;
+use syntax::name::AsName;
 use syntax::{ast, AstNode, AstPtr};
 
 use crate::db::HirDefDB;
@@ -82,6 +83,24 @@ impl Body {
                     ast_id_map: &ast_id_map,
                     curr_scope,
                     registry: &registry,
+                    genvar_names: ast
+                        .module_items()
+                        .filter_map(|it| match it {
+                            ast::ModuleItem::GenvarDecl(g) => Some(g),
+                            _ => None,
+                        })
+                        .flat_map(|g| g.names().map(|n| n.as_name()))
+                        .collect(),
+                    bus_names: ast
+                        .module_items()
+                        .filter_map(|it| match it {
+                            ast::ModuleItem::NetDecl(net) if net.dimension().is_some() => Some(net),
+                            _ => None,
+                        })
+                        .flat_map(|net| net.names().map(|n| n.as_name()))
+                        .collect(),
+                    module: Some(ast.clone()),
+                    genvars: Vec::new(),
                 };
                 body.entry_stmts = match kind {
                     ModuleBodyKind::AnalogInitial => {
@@ -121,6 +140,10 @@ impl Body {
                     ast_id_map: &ast_id_map,
                     curr_scope,
                     registry: &registry,
+                    genvar_names: Vec::new(),
+                    bus_names: Vec::new(),
+                    module: None,
+                    genvars: Vec::new(),
                 };
                 body.entry_stmts = ast.body().map(|stmt| ctx.collect_stmt(stmt)).collect();
             }
@@ -138,6 +161,10 @@ impl Body {
                     ast_id_map: &ast_id_map,
                     curr_scope,
                     registry: &registry,
+                    genvar_names: Vec::new(),
+                    bus_names: Vec::new(),
+                    module: None,
+                    genvars: Vec::new(),
                 };
 
                 let expr = if let Some(expr) = ast.default() {
@@ -175,6 +202,10 @@ impl Body {
                     ast_id_map: &ast_id_map,
                     curr_scope,
                     registry: &registry,
+                    genvar_names: Vec::new(),
+                    bus_names: Vec::new(),
+                    module: None,
+                    genvars: Vec::new(),
                 };
                 let expr = ctx.collect_opt_expr(ast.val());
                 let stmt = ctx.alloc_stmt_desugared(Stmt::Expr(expr));
@@ -197,6 +228,10 @@ impl Body {
                     ast_id_map: &ast_id_map,
                     curr_scope,
                     registry: &registry,
+                    genvar_names: Vec::new(),
+                    bus_names: Vec::new(),
+                    module: None,
+                    genvars: Vec::new(),
                 };
                 let expr = ctx.collect_opt_expr(ast.val());
                 let stmt = ctx.alloc_stmt_desugared(Stmt::Expr(expr));
@@ -231,6 +266,10 @@ impl Body {
             ast_id_map: &ast_id_map,
             curr_scope: (scope, ast_id.into()),
             registry: &registry,
+            genvar_names: Vec::new(),
+            bus_names: Vec::new(),
+            module: None,
+            genvars: Vec::new(),
         };
 
         let default = ctx.collect_opt_expr(ast.default());

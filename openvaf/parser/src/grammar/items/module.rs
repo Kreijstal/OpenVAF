@@ -10,6 +10,7 @@ const MODULE_ITEM_RECOVERY: TokenSet = DIRECTION_TS.union(TokenSet::new(&[
     STRING_KW,
     REAL_KW,
     INTEGER_KW,
+    GENVAR_KW,
     PARAMETER_KW,
     LOCALPARAM_KW,
     ENDMODULE_KW,
@@ -40,7 +41,18 @@ const MODULE_PORTS_RECOVERY: TokenSet = TokenSet::new(&[T![;], T![')'], ENDMODUL
 fn module_ports(p: &mut Parser) {
     while !p.at_ts(MODULE_PORTS_RECOVERY) {
         let m = p.start();
-        if eat_name(p) {
+        if p.at(IDENT) && p.nth_at(1, T!['[']) {
+            // Vectored/bus port reference in the module header, e.g.
+            // `rc_ladder(inode[0], inode[n])`. The referenced element is resolved
+            // against the expanded scalar nodes of the bus net declaration.
+            let pr = p.start();
+            name(p);
+            p.bump(T!['[']);
+            expr(p);
+            p.expect(T![']']);
+            pr.complete(p, PORT_REF);
+            m.complete(p, MODULE_PORT);
+        } else if eat_name(p) {
             m.complete(p, MODULE_PORT);
         } else if p.at_ts(DIRECTION_TS) || p.at(T!["(*"]) {
             let inner = p.start();
@@ -150,6 +162,7 @@ fn module_items(p: &mut Parser) {
                 branch_decl(p, m);
             }
             INTEGER_KW | REAL_KW | STRING_KW => var_decl(p, m),
+            GENVAR_KW => genvar_decl(p, m),
             INPUT_KW | OUTPUT_KW | INOUT_KW => port_decl::<false>(p, m),
             _ => {
                 error_range = if let Some(error_range) = error_range {
@@ -179,6 +192,13 @@ fn module_items(p: &mut Parser) {
     }
 }
 
+fn genvar_decl(p: &mut Parser, m: Marker) {
+    p.bump(GENVAR_KW);
+    decl_list(p, T![;], decl_name, MODULE_ITEM_OR_ATTR_RECOVERY);
+    p.eat(T![;]);
+    m.complete(p, GENVAR_DECL);
+}
+
 fn net_decl<const NET_TYPE_FIRST: bool>(p: &mut Parser, m: Marker) {
     //direction and type ar both optional since only one is required
     if NET_TYPE_FIRST {
@@ -188,6 +208,17 @@ fn net_decl<const NET_TYPE_FIRST: bool>(p: &mut Parser, m: Marker) {
         }
     } else {
         name_ref_r(p, MODULE_ITEM_OR_ATTR_RECOVERY.union(TokenSet::unique(T![;])))
+    }
+
+    // Optional vectored/bus range, e.g. `electrical [0:n] inode;`.
+    if p.at(T!['[']) {
+        let dim = p.start();
+        p.bump(T!['[']);
+        expr(p);
+        p.expect(T![:]);
+        expr(p);
+        p.expect(T![']']);
+        dim.complete(p, DIMENSION);
     }
 
     net_dec_list(p);

@@ -200,10 +200,17 @@ ModuleItem =
 | VarDecl
 | ParamDecl
 | AliasParam
+| GenvarDecl
 
 ModulePorts = '('ports: (ModulePort (',' ModulePort)*)? ')'
 ModulePort = kind: ModulePortKind
-ModulePortKind = PortDecl| Name
+ModulePortKind = PortDecl| Name | PortRef
+
+PortRef =
+  Name '[' Expr ']'
+
+GenvarDecl =
+  AttrList* 'genvar' (Name (',' Name)*) ';'
 
 AnalogBehaviour =
   AttrList* 'analog' 'initial'? Stmt
@@ -241,7 +248,7 @@ Range =
 
 
 NetDecl =
-  AttrList*  discipline:NameRef?  'net_type'? (Name (',' Name)*)';'
+  AttrList*  discipline:NameRef?  'net_type'? Dimension? (Name (',' Name)*)';'
 
 BodyPortDecl =
   PortDecl ';'
