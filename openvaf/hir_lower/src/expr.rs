@@ -759,11 +759,39 @@ impl BodyLoweringCtx<'_, '_, '_> {
                 res
             }*/
             BuiltIn::transition => {
-                // Instantaneous approximation: ignore delay/rise/fall and return the
-                // target value. `transition`'s first argument is typed Integer but the
-                // operator returns Real, so cast to keep the MIR well-typed.
-                let val = self.lower_expr(args[0]);
-                self.ctx.insert_cast(val, &Type::Integer, &Type::Real)
+                // `transition`'s first argument is typed Integer but the operator
+                // returns Real, so cast to keep the MIR well-typed.
+                let target = self.lower_expr(args[0]);
+                let target = self.ctx.insert_cast(target, &Type::Integer, &Type::Real);
+                if self.ctx.no_equations {
+                    // No DAE context (AC/noise setup, op-vars): pass the target through.
+                    target
+                } else {
+                    // Continuous (slew-limited) realization. The ideal `transition` is a
+                    // piecewise-linear ramp from the old value to the new one over the
+                    // rise/fall time; emitting it as an instantaneous jump produces a
+                    // time discontinuity the transient integrator cannot step across
+                    // ("timestep too small"). We realize it as a first-order lag whose
+                    // time constant is the rise time when the target is increasing and
+                    // the fall time when decreasing — a continuous output the solver
+                    // integrates through, with the requested transition speed.
+                    let eps = self.ctx.fconst(1e-12);
+                    let rise = if args.len() > 2 { self.lower_expr(args[2]) } else { eps };
+                    let fall = if args.len() > 3 { self.lower_expr(args[3]) } else { rise };
+                    let (eq, x) =
+                        self.ctx.implicit_equation(ImplicitEquationKind::Idt(IdtKind::Basic));
+                    // tau = (target >= x) ? rise : fall, floored to eps to avoid /0.
+                    let rising = self.ctx.ins().fge(target, x);
+                    let tau = self.ctx.make_select(rising, |_s, b| if b { rise } else { fall });
+                    let tau_ok = self.ctx.ins().fge(tau, eps);
+                    let tau = self.ctx.make_select(tau_ok, |_s, b| if b { tau } else { eps });
+                    // dx/dt = (target - x)/tau  ->  react = x, resist = (x - target)/tau.
+                    let diff = self.ctx.ins().fsub(x, target);
+                    let resist = self.ctx.ins().fdiv(diff, tau);
+                    self.ctx.def_resist_residual(resist, eq);
+                    self.ctx.def_react_residual(x, eq);
+                    x
+                }
             }
             BuiltIn::slew | BuiltIn::limit | BuiltIn::absdelay => self.lower_expr(args[0]),
 
