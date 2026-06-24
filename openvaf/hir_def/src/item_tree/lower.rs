@@ -562,13 +562,29 @@ impl Ctx {
     }
 
     fn lower_var<T: From<ItemTreeId<Var>>>(&mut self, decl: ast::VarDecl, dst: &mut Vec<T>) {
-        let ty = decl.ty().as_type();
+        let base_ty = decl.ty().as_type();
+        let module = decl.syntax().ancestors().find_map(ast::ModuleDecl::cast);
         for var in decl.vars() {
             if let Some(name) = var.name() {
+                // `real den[msb:lsb];` -> a fixed-size array. The bounds are
+                // compile-time integer constants (literals, arithmetic, or parameter
+                // references resolved against the enclosing module).
+                let ty = match (var.dimension(), module.as_ref()) {
+                    (Some(dim), Some(module)) => {
+                        let len = dim
+                            .msb()
+                            .and_then(|m| eval_const_int(&m, module))
+                            .zip(dim.lsb().and_then(|l| eval_const_int(&l, module)))
+                            .map(|(msb, lsb)| (msb - lsb).unsigned_abs() as u32 + 1)
+                            .unwrap_or(0);
+                        Type::Array { ty: Box::new(base_ty.clone()), len }
+                    }
+                    _ => base_ty.clone(),
+                };
                 let var = Var {
                     name: name.as_name(),
                     ast_id: self.source_ast_id_map.ast_id(&var),
-                    ty: ty.clone(),
+                    ty,
                 };
                 let id = self.tree.data.variables.push_and_get_key(var);
                 dst.push(id.into())
@@ -614,5 +630,51 @@ impl Ctx {
             let param = self.tree.data.alias_parameters.push_and_get_key(param);
             dst.push(param.into())
         }
+    }
+}
+
+/// Best-effort compile-time evaluation of an integer constant expression, resolving
+/// parameter references against the enclosing module's parameter declarations. Used
+/// to size array/bus dimensions like `real den[order:0]` / `electrical [0:n] x`.
+fn eval_const_int(expr: &ast::Expr, module: &ast::ModuleDecl) -> Option<i64> {
+    use syntax::ast::{BinaryOp, LiteralKind, UnaryOp};
+    match expr {
+        ast::Expr::Literal(lit) => match lit.kind() {
+            LiteralKind::IntNumber(i) => Some(i.value() as i64),
+            _ => None,
+        },
+        ast::Expr::PrefixExpr(p) => {
+            let v = eval_const_int(&p.expr()?, module)?;
+            match p.op_kind()? {
+                UnaryOp::Neg => Some(-v),
+                UnaryOp::Identity => Some(v),
+                _ => None,
+            }
+        }
+        ast::Expr::ParenExpr(p) => eval_const_int(&p.expr()?, module),
+        ast::Expr::BinExpr(b) => {
+            let l = eval_const_int(&b.lhs()?, module)?;
+            let r = eval_const_int(&b.rhs()?, module)?;
+            match b.op_kind()? {
+                BinaryOp::Addition => Some(l.wrapping_add(r)),
+                BinaryOp::Subtraction => Some(l.wrapping_sub(r)),
+                BinaryOp::Multiplication => Some(l.wrapping_mul(r)),
+                BinaryOp::Division if r != 0 => Some(l / r),
+                _ => None,
+            }
+        }
+        ast::Expr::PathExpr(pe) => {
+            let ident = pe.path()?.as_raw_ident()?;
+            let name = ident.text();
+            for pdecl in module.syntax().descendants().filter_map(ast::ParamDecl::cast) {
+                for para in pdecl.paras() {
+                    if para.name().map_or(false, |n| n.text() == name) {
+                        return eval_const_int(&para.default()?, module);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
     }
 }
