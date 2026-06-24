@@ -759,10 +759,10 @@ impl BodyLoweringCtx<'_, '_, '_> {
                 res
             }*/
             BuiltIn::transition => {
-                // `transition`'s first argument is typed Integer but the operator
-                // returns Real, so cast to keep the MIR well-typed.
+                // `transition` accepts an integer or real first argument; the
+                // builtin signature types it as Real, so `lower_expr` already widens
+                // an integer/bool argument to Real for us (the operator returns Real).
                 let target = self.lower_expr(args[0]);
-                let target = self.ctx.insert_cast(target, &Type::Integer, &Type::Real);
                 if self.ctx.no_equations {
                     // No DAE context (AC/noise setup, op-vars): pass the target through.
                     target
