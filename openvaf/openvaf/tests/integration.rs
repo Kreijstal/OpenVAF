@@ -10,7 +10,7 @@ use openvaf::{CompilationDestination, CompilationTermination, LLVMCodeGenOptLeve
 use stdx::{ignore_dev_tests, openvaf_test_data, project_root};
 use target::spec::Target;
 
-use crate::load::{load_osdi_lib, EvalFlags, OsdiDescriptor};
+use crate::load::{load_osdi_lib, EvalFlags, OsdiDescriptor, OsdiInstance, OsdiModel};
 use crate::mock_sim::{MockSimulation, ALPHA};
 
 mod load;
@@ -255,6 +255,75 @@ fn test_noise() -> Result<()> {
     Ok(())
 }
 
+/// Fixed-size arrays: declaration, constant- and runtime-index read/write all
+/// feed a single conductance. See `arrays.va`; with the default `sel=1` the
+/// assembled conductance is G = 21, so the loaded DAE residual/Jacobian must
+/// match exactly if every array access lowered correctly.
+fn test_arrays() -> Result<()> {
+    if stdx::IS_CI && cfg!(windows) {
+        return Ok(());
+    }
+
+    let desc = test_descriptor(&openvaf_test_data("osdi").join("arrays.va"))?;
+    let model = desc.new_model();
+    model.process_params()?;
+    let mut instance = model.new_instance();
+    let mut sim = instance.mock_simulation(&model, desc.num_terminals, 300.0)?;
+
+    sim.set_voltage("p", 1.0);
+    sim.set_voltage("n", 0.0);
+    instance.eval(&model, &mut sim, EvalFlags::empty());
+    instance.load_dae(&model, &mut sim);
+
+    // G = gsum (13) + gx (8) = 21, with I(p,n) = G * V(p,n).
+    float_cmp::assert_approx_eq!(f64, sim.read_residual("p").0, 21.0, epsilon = 1e-9);
+    float_cmp::assert_approx_eq!(f64, sim.read_residual("n").0, -21.0, epsilon = 1e-9);
+    float_cmp::assert_approx_eq!(f64, sim.read_jacobian("p", "p").0, 21.0, epsilon = 1e-9);
+    Ok(())
+}
+
+/// `@(cross)` state retention: `state` is assigned only inside cross handlers, so
+/// it must hold across timesteps. The mock simulator's `next_iter` swaps the
+/// prev/next state arrays, exactly as a real simulator advances a timestep. We
+/// drive the input high/low/dead-band and check the latched output is retained.
+/// See `cross_latch.va`; residual at q equals `-state` (with V(q)=0).
+fn test_cross_latch() -> Result<()> {
+    if stdx::IS_CI && cfg!(windows) {
+        return Ok(());
+    }
+
+    let desc = test_descriptor(&openvaf_test_data("osdi").join("cross_latch.va"))?;
+    let model = desc.new_model();
+    model.process_params()?;
+    let mut instance = model.new_instance();
+    let mut sim = instance.mock_simulation(&model, desc.num_terminals, 300.0)?;
+
+    // Advance one timestep: swap prev/next state, re-apply the node voltages
+    // (next_iter zeroes the solution), evaluate, and load the DAE residual.
+    let step = |instance: &OsdiInstance, model: &OsdiModel, sim: &mut MockSimulation, vd: f64, first: bool| {
+        if !first {
+            sim.next_iter();
+        }
+        sim.set_voltage("q", 0.0);
+        sim.set_voltage("d", vd);
+        instance.eval(model, sim, EvalFlags::ENABLE_LIM | EvalFlags::INIT_LIM);
+        instance.load_dae(model, sim);
+        sim.read_residual("q").0
+    };
+
+    // d high -> latch sets state=1 (residual = -1).
+    float_cmp::assert_approx_eq!(f64, step(&instance, &model, &mut sim, 1.0, true), -1.0, epsilon = 1e-9);
+    // dead-band -> state 1 retained.
+    float_cmp::assert_approx_eq!(f64, step(&instance, &model, &mut sim, 0.5, false), -1.0, epsilon = 1e-9);
+    // d low -> latch clears state=0 (residual = 0).
+    float_cmp::assert_approx_eq!(f64, step(&instance, &model, &mut sim, 0.0, false), 0.0, epsilon = 1e-9);
+    // dead-band -> state 0 retained.
+    float_cmp::assert_approx_eq!(f64, step(&instance, &model, &mut sim, 0.5, false), 0.0, epsilon = 1e-9);
+    // d high again -> latch flips back to state=1.
+    float_cmp::assert_approx_eq!(f64, step(&instance, &model, &mut sim, 1.0, false), -1.0, epsilon = 1e-9);
+    Ok(())
+}
+
 harness! {
     // TODO: run this in CI, somehow this test is flakey tough regarding the linker invocation (and really slow)
     Test::from_dir("integration", &integration_test, &ignore_dev_tests, &project_root().join("integration_tests")),
@@ -264,5 +333,5 @@ harness! {
     Test::from_dir_filtered("vacask_spice", &vacask_spice_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice")),
     // VACASK simplified SPICE models
     Test::from_dir_filtered("vacask_spice_sn", &vacask_spice_sn_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice/sn")),
-    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise)]
+    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch)]
 }
