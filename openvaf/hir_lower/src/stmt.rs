@@ -1,9 +1,10 @@
-use hir::{BranchWrite, Case, CaseCond, ContributeKind, ExprId, Node, Stmt, StmtId, Type};
+use hir::{BranchWrite, Case, CaseCond, ContributeKind, Expr, ExprId, Node, Stmt, StmtId, Type};
 use mir::builder::InstBuilder;
-use mir::{Opcode, F_ZERO};
+use mir::{Opcode, Value, F_ZERO};
+use syntax::ast::BinaryOp;
 
 use crate::body::BodyLoweringCtx;
-use crate::{CallBackKind, CurrentKind, ParamKind, PlaceKind};
+use crate::{CallBackKind, CurrentKind, ImplicitEquationKind, ParamKind, PlaceKind};
 
 impl BodyLoweringCtx<'_, '_, '_> {
     pub(super) fn lower_stmt(&mut self, stmnt: StmtId) {
@@ -58,9 +59,12 @@ impl BodyLoweringCtx<'_, '_, '_> {
                     _ => self.ctx.def_place(lhs.into(), val_),
                 }
             }
-            Stmt::Contribute { kind, branch, rhs } => {
-                self.contribute(kind == ContributeKind::Potential, branch, rhs)
-            }
+            Stmt::Contribute { kind, branch, rhs } => match kind {
+                ContributeKind::Potential => self.contribute(true, branch, rhs),
+                ContributeKind::Flow => self.contribute(false, branch, rhs),
+                ContributeKind::IndirectPotential => self.indirect_contribute(true, branch, rhs),
+                ContributeKind::IndirectFlow => self.indirect_contribute(false, branch, rhs),
+            },
 
             Stmt::Block { body } => {
                 for stmt in body {
@@ -197,7 +201,22 @@ impl BodyLoweringCtx<'_, '_, '_> {
         self.ctx.switch_to_block(loop_end);
     }
 
-    fn contribute(&mut self, voltage_src: bool, mut write: BranchWrite, rhs: ExprId) {
+    fn contribute(&mut self, voltage_src: bool, write: BranchWrite, rhs: ExprId) {
+        let is_zero = self.body.get_expr(rhs).is_zero();
+        self.contribute_with(voltage_src, write, is_zero, |s| s.lower_expr(rhs));
+    }
+
+    /// Shared body of a branch contribution. `lower_rhs` is invoked to produce the
+    /// contributed value at the exact point the old direct lowering did, so ordinary
+    /// contributions keep byte-identical MIR; indirect assignments supply an
+    /// already-computed implicit unknown instead.
+    fn contribute_with(
+        &mut self,
+        voltage_src: bool,
+        mut write: BranchWrite,
+        rhs_is_zero: bool,
+        lower_rhs: impl FnOnce(&mut Self) -> Value,
+    ) {
         let mut negate = false;
         if let BranchWrite::Unnamed { hi, lo } = &mut write {
             self.lower_contribute_unnamed_branch(&mut negate, hi, lo, voltage_src)
@@ -205,8 +224,7 @@ impl BodyLoweringCtx<'_, '_, '_> {
         self.ctx.def_place(PlaceKind::IsVoltageSrc(write), voltage_src.into());
 
         let (mut hi, mut lo) = write.nodes(self.ctx.db);
-        let is_zero = self.body.get_expr(rhs).is_zero();
-        if voltage_src && is_zero {
+        if voltage_src && rhs_is_zero {
             if matches!(write, BranchWrite::Named(_)) {
                 self.lower_contribute_unnamed_branch(&mut negate, &mut hi, &mut lo, voltage_src)
             }
@@ -219,7 +237,7 @@ impl BodyLoweringCtx<'_, '_, '_> {
             F_ZERO,
         );
 
-        let rhs = self.lower_expr(rhs);
+        let rhs = lower_rhs(self);
         if rhs == F_ZERO {
             return;
         }
@@ -234,6 +252,49 @@ impl BodyLoweringCtx<'_, '_, '_> {
             self.ctx.ins().fadd(old, rhs)
         };
         self.ctx.def_place(place, new);
+    }
+
+    /// Lower an indirect branch assignment `V(out) : f(...) == 0` (or the `I(out)`
+    /// flow form). The target branch becomes a source whose value is a fresh implicit
+    /// unknown `u`; an auxiliary equation pins `u` so the constraint residual is zero.
+    /// This reuses exactly the implicit-equation/DAE machinery behind `idt`.
+    fn indirect_contribute(&mut self, voltage_src: bool, write: BranchWrite, constraint: ExprId) {
+        let (eq, unknown) = self.ctx.implicit_equation(ImplicitEquationKind::IndirectBranch);
+        // Drive the branch as a source whose value is the implicit unknown.
+        self.contribute_with(voltage_src, write, false, |_| unknown);
+        // Residual of the auxiliary equation: `lhs - rhs` of the `==` constraint (== 0).
+        let residual = self.lower_constraint_residual(constraint);
+        self.ctx.def_resist_residual(residual, eq);
+    }
+
+    /// Lower the constraint of an indirect branch assignment to its residual value.
+    /// The canonical form is `lhs == rhs`, whose residual is `lhs - rhs`; a bare
+    /// expression is treated leniently as `expr == 0`.
+    fn lower_constraint_residual(&mut self, constraint: ExprId) -> Value {
+        if let Expr::BinaryOp { lhs, rhs, op: BinaryOp::EqualityTest } =
+            self.body.get_expr(constraint)
+        {
+            let lhs = self.lower_real_operand(lhs);
+            let rhs = self.lower_real_operand(rhs);
+            self.ctx.ins().fsub(lhs, rhs)
+        } else {
+            self.lower_real_operand(constraint)
+        }
+    }
+
+    /// Lower an expression and coerce the result to `Real` (integer/bool constraint
+    /// operands are widened so the residual is a floating-point quantity).
+    fn lower_real_operand(&mut self, expr: ExprId) -> Value {
+        let val = self.lower_expr(expr);
+        let ty = match self.body.needs_cast(expr) {
+            Some((_, dst)) => dst.clone(),
+            None => self.body.expr_type(expr),
+        };
+        match ty {
+            Type::Real => val,
+            Type::Integer | Type::Bool => self.ctx.insert_cast(val, &ty, &Type::Real),
+            _ => val,
+        }
     }
 
     fn lower_contribute_unnamed_branch(

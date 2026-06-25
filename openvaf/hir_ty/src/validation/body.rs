@@ -210,7 +210,9 @@ impl BodyValidator<'_> {
             Stmt::Assignment { dst, val, assignment_kind } => {
                 self.validate_expr(val, stmt);
 
-                if assignment_kind == AssignOp::Contribute && !self.ctx.allow_contribute() {
+                if matches!(assignment_kind, AssignOp::Contribute | AssignOp::Indirect)
+                    && !self.ctx.allow_contribute()
+                {
                     self.diagnostics
                         .push(BodyValidationDiagnostic::IllegalContribute { stmt, ctx: self.ctx })
                 }

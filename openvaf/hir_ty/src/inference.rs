@@ -131,7 +131,15 @@ impl Ctx<'_> {
             }
             Stmt::Assignment { dst, val, assignment_kind } => {
                 let dst_ty = self.infere_assignment_dst(stmt, dst, assignment_kind);
-                self.infere_assignment(stmt, val, dst_ty);
+                if assignment_kind == ast::AssignOp::Indirect {
+                    // `V(out) : f(...) == 0` — the rhs is the constraint equation, not a
+                    // value to assign to the branch. Infer it on its own terms (an
+                    // equality test producing bool, with its operands coerced as usual);
+                    // MIR lowering turns it into an implicit-equation residual.
+                    self.infere_expr(stmt, val);
+                } else {
+                    self.infere_assignment(stmt, val, dst_ty);
+                }
             }
             Stmt::ForLoop { cond, .. } | Stmt::If { cond, .. } | Stmt::WhileLoop { cond, .. } => {
                 self.infere_cond(stmt, cond)
@@ -207,7 +215,7 @@ impl Ctx<'_> {
         if let Expr::Index { base, index } = self.body.exprs[expr] {
             if let Ty::Var(Type::Array { ty, .. }, var) = self.result.expr_types[base].clone() {
                 let elem = *ty;
-                if assignment_kind == ast::AssignOp::Contribute {
+                if matches!(assignment_kind, ast::AssignOp::Contribute | ast::AssignOp::Indirect) {
                     self.result.diagnostics.push(InferenceDiagnostic::InvalidAssignDst {
                         e: expr,
                         maybe_different_operand: Some(ast::AssignOp::Assign),
@@ -285,6 +293,15 @@ impl Ctx<'_> {
                 self.result.diagnostics.push(InferenceDiagnostic::InvalidAssignDst {
                     e: expr,
                     maybe_different_operand: Some(ast::AssignOp::Contribute),
+                    assignment_kind,
+                });
+            }
+            // Indirect branch assignment (`V(out) : …`) requires a branch destination,
+            // exactly like a contribution.
+            (AssignDst::Var(_) | AssignDst::FunVar { .. }, ast::AssignOp::Indirect) => {
+                self.result.diagnostics.push(InferenceDiagnostic::InvalidAssignDst {
+                    e: expr,
+                    maybe_different_operand: Some(ast::AssignOp::Assign),
                     assignment_kind,
                 });
             }

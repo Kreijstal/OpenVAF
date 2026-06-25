@@ -200,12 +200,15 @@ impl ast::ModulePorts {
 pub enum AssignOp {
     Contribute,
     Assign,
+    /// Indirect branch assignment `V(out) : constraint == 0;` (Verilog-AMS LRM).
+    Indirect,
 }
 
 impl_debug! {
     match AssignOp{
         AssignOp::Contribute => "<+";
         AssignOp::Assign => "=";
+        AssignOp::Indirect => ":";
     }
 }
 
@@ -215,6 +218,8 @@ impl Assign {
             Some(AssignOp::Assign)
         } else if support::token(self.syntax(), T![<+]).is_some() {
             Some(AssignOp::Contribute)
+        } else if support::token(self.syntax(), T![:]).is_some() {
+            Some(AssignOp::Indirect)
         } else {
             None
         }

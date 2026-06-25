@@ -188,7 +188,8 @@ impl<'a> BodyRef<'a> {
             hir_def::Stmt::EventControl { ref event, body } => {
                 Some(Stmt::EventControl { event, body })
             }
-            hir_def::Stmt::Assignment { val, .. } => {
+            hir_def::Stmt::Assignment { val, assignment_kind, .. } => {
+                let indirect = assignment_kind == syntax::ast::AssignOp::Indirect;
                 let stmt = match self.infere.assignment_destination[&stmnt] {
                     inference::AssignDst::Var(id) => {
                         Stmt::Assignment { lhs: AssignmentLhs::Variable(Variable { id }), rhs: val }
@@ -206,12 +207,20 @@ impl<'a> BodyRef<'a> {
                         rhs: val,
                     },
                     inference::AssignDst::Flow(branch) => Stmt::Contribute {
-                        kind: ContributeKind::Flow,
+                        kind: if indirect {
+                            ContributeKind::IndirectFlow
+                        } else {
+                            ContributeKind::Flow
+                        },
                         branch: branch.into(),
                         rhs: val,
                     },
                     inference::AssignDst::Potential(branch) => Stmt::Contribute {
-                        kind: ContributeKind::Potential,
+                        kind: if indirect {
+                            ContributeKind::IndirectPotential
+                        } else {
+                            ContributeKind::Potential
+                        },
                         branch: branch.into(),
                         rhs: val,
                     },
@@ -244,6 +253,14 @@ pub enum AssignmentLhs {
 pub enum ContributeKind {
     Flow,
     Potential,
+    /// Indirect branch assignment `I(out) : f(...) == 0` — `out` becomes a current
+    /// source whose value is solved so the constraint `f == 0` holds. `rhs` is the
+    /// constraint equation.
+    IndirectFlow,
+    /// Indirect branch assignment `V(out) : f(...) == 0` — `out` becomes a voltage
+    /// source whose value is solved so the constraint `f == 0` holds. `rhs` is the
+    /// constraint equation.
+    IndirectPotential,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

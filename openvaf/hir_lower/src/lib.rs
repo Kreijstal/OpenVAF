@@ -45,6 +45,10 @@ pub enum ImplicitEquationKind {
     Ddt,
     NoiseSrc,
     Idt(IdtKind),
+    /// Auxiliary unknown introduced by an indirect branch assignment
+    /// (`V(out) : f(...) == 0`): the source value of the target branch, solved so the
+    /// constraint residual is zero.
+    IndirectBranch,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

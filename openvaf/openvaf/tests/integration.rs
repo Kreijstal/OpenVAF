@@ -414,6 +414,52 @@ fn test_cross_array() -> Result<()> {
     Ok(())
 }
 
+/// Indirect branch assignment `V(out) : V(pin,nin) == 0` (ideal op-amp, issue #80).
+/// Lowers to an implicit equation whose unknown drives `out` as a voltage source and
+/// whose residual is the constraint `V(pin) - V(nin)`. The constraint residual (and
+/// its Jacobian) is independent of the unknown, so we can check it on the isolated
+/// device: with V(pin)=0.3, V(nin)=0.1 the `implicit_equation_0` row carries 0.2 with
+/// d/dV(pin)=+1, d/dV(nin)=-1. See `opamp_indirect.va`.
+fn test_indirect_opamp() -> Result<()> {
+    if stdx::IS_CI && cfg!(windows) {
+        return Ok(());
+    }
+
+    let desc = test_descriptor(&openvaf_test_data("osdi").join("opamp_indirect.va"))?;
+    let model = desc.new_model();
+    model.process_params()?;
+    let mut instance = model.new_instance();
+    let mut sim = instance.mock_simulation(&model, desc.num_terminals, 300.0)?;
+
+    sim.set_voltage("out", 0.0);
+    sim.set_voltage("pin", 0.3);
+    sim.set_voltage("nin", 0.1);
+    sim.set_voltage("implicit_equation_0", 0.7); // unknown; residual must not depend on it
+    instance.eval(&model, &mut sim, EvalFlags::empty());
+    instance.load_dae(&model, &mut sim);
+
+    // constraint residual = V(pin) - V(nin) = 0.2, regardless of the unknown.
+    float_cmp::assert_approx_eq!(
+        f64,
+        sim.read_residual("implicit_equation_0").0,
+        0.2,
+        epsilon = 1e-9
+    );
+    float_cmp::assert_approx_eq!(
+        f64,
+        sim.read_jacobian("pin", "implicit_equation_0").0,
+        1.0,
+        epsilon = 1e-9
+    );
+    float_cmp::assert_approx_eq!(
+        f64,
+        sim.read_jacobian("nin", "implicit_equation_0").0,
+        -1.0,
+        epsilon = 1e-9
+    );
+    Ok(())
+}
+
 /// LRM 2.4 transition() Example 2 (N-bit A/D converter), legal form (continuous
 /// contributions outside the discrete @(cross) sampler). Exercises the whole new
 /// stack at once: vector ports + genvar unroll + retained @(cross) array +
@@ -435,5 +481,5 @@ harness! {
     Test::from_dir_filtered("vacask_spice", &vacask_spice_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice")),
     // VACASK simplified SPICE models
     Test::from_dir_filtered("vacask_spice_sn", &vacask_spice_sn_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice/sn")),
-    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch),Test::new("laplace_nd_int", &test_laplace_nd_int),Test::new("vector_ports", &test_vector_ports),Test::new("qam16", &test_qam16),Test::new("cross_array", &test_cross_array),Test::new("adc", &test_adc)]
+    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch),Test::new("laplace_nd_int", &test_laplace_nd_int),Test::new("vector_ports", &test_vector_ports),Test::new("qam16", &test_qam16),Test::new("cross_array", &test_cross_array),Test::new("adc", &test_adc),Test::new("indirect_opamp", &test_indirect_opamp)]
 }
