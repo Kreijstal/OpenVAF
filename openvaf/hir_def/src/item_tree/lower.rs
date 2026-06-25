@@ -393,6 +393,37 @@ impl Ctx {
         }
     }
 
+    /// Collect bus base names declared with a vectored range anywhere in the module
+    /// body (`input [msb:lsb] x;` or `electrical [msb:lsb] x;`), mapping each name to
+    /// its constant `(msb, lsb)` bounds. Used to expand bare head port names.
+    fn collect_bus_ranges(&self, module: &ast::ModuleDecl) -> ahash::AHashMap<Name, (i64, i64)> {
+        let mut ranges = ahash::AHashMap::new();
+        let mut add = |dim: Option<ast::Dimension>, names: ast::AstChildren<ast::Name>| {
+            if let Some(dim) = dim {
+                if let (Some(msb), Some(lsb)) = (
+                    dim.msb().and_then(|e| eval_const_int(&e, module)),
+                    dim.lsb().and_then(|e| eval_const_int(&e, module)),
+                ) {
+                    for name in names {
+                        ranges.insert(name.as_name(), (msb, lsb));
+                    }
+                }
+            }
+        };
+        for item in module.module_items() {
+            match item {
+                ast::ModuleItem::BodyPortDecl(bpd) => {
+                    if let Some(decl) = bpd.port_decl() {
+                        add(decl.dimension(), decl.names());
+                    }
+                }
+                ast::ModuleItem::NetDecl(decl) => add(decl.dimension(), decl.names()),
+                _ => {}
+            }
+        }
+        ranges
+    }
+
     fn lower_module_ports(
         &mut self,
         ports: ast::ModulePorts,
@@ -400,19 +431,39 @@ impl Ctx {
         dst: &mut Vec<ModuleItem>,
     ) {
         let module = ports.syntax().ancestors().find_map(ast::ModuleDecl::cast);
+
+        // A port may be listed in the head as a bare name (`module m(in, out);`) and
+        // given a bus range only in the body (`input [0:3] in;`). Pre-scan the body's
+        // declarations so such a head name expands to the same `in[0]..in[3]` scalar
+        // nodes the body decl produces, letting the two reconcile by name.
+        let bus_ranges = module.as_ref().map(|m| self.collect_bus_ranges(m)).unwrap_or_default();
+
         for port in ports.ports() {
             let ast_id = self.source_ast_id_map.ast_id(&port);
             match port.kind() {
                 ast::ModulePortKind::Name(name) => {
-                    let name = name.as_name();
-                    if nodes.iter().all(|node| node.name != name) {
-                        let node = nodes.push_and_get_key(Node {
-                            name,
-                            is_port: true,
-                            ast_id: ast_id.into(),
-                            decls: Vec::new(),
-                        });
-                        dst.push(node.into())
+                    let base = name.as_name();
+                    let indices: Vec<Option<i64>> = match bus_ranges.get(&base) {
+                        Some(&(msb, lsb)) => {
+                            let (lo, hi) = if msb <= lsb { (msb, lsb) } else { (lsb, msb) };
+                            (lo..=hi).map(Some).collect()
+                        }
+                        None => vec![None],
+                    };
+                    for idx in indices {
+                        let name = match idx {
+                            Some(idx) => Name::resolve(&format!("{}[{}]", base, idx)),
+                            None => base.clone(),
+                        };
+                        if nodes.iter().all(|node| node.name != name) {
+                            let node = nodes.push_and_get_key(Node {
+                                name,
+                                is_port: true,
+                                ast_id: ast_id.into(),
+                                decls: Vec::new(),
+                            });
+                            dst.push(node.into())
+                        }
                     }
                 }
                 // Vectored/bus port reference `inode[k]` in the module header. The
@@ -461,28 +512,51 @@ impl Ctx {
 
         let is_gnd = decl.net_type_token().map_or(false, |it| it.text() == kw::raw::ground);
         let ast_id = self.source_ast_id_map.ast_id(&decl);
-        for (name_idx, name) in decl.names().enumerate() {
-            let name = name.as_name();
-            let id = self.tree.data.ports.push_and_get_key(Port {
-                name: name.clone(),
-                discipline: discipline.clone(),
-                is_input: is_input(&direction),
-                is_output: is_output(&direction),
-                ast_id,
-                name_idx,
-                is_gnd,
-            });
 
-            match nodes.iter_mut().find(|node| node.name == name) {
-                Some(node) => node.decls.push(id.into()),
-                None => {
-                    let node = nodes.push_and_get_key(Node {
-                        name,
-                        is_port: true,
-                        ast_id: ast_id.into(),
-                        decls: vec![id.into()],
-                    });
-                    dst.push(node.into())
+        // Vectored/bus port declaration `input [msb:lsb] in;` expands into one scalar
+        // port/node per index, named `in[msb]`..`in[lsb]`, exactly as a bus net does.
+        let bus_range = decl.dimension().and_then(|dim| {
+            let module = decl.syntax().ancestors().find_map(ast::ModuleDecl::cast)?;
+            let msb = eval_const_int(&dim.msb()?, &module)?;
+            let lsb = eval_const_int(&dim.lsb()?, &module)?;
+            Some((msb, lsb))
+        });
+
+        for (name_idx, name) in decl.names().enumerate() {
+            let base = name.as_name();
+            let indices: Vec<Option<i64>> = match bus_range {
+                Some((msb, lsb)) => {
+                    let (lo, hi) = if msb <= lsb { (msb, lsb) } else { (lsb, msb) };
+                    (lo..=hi).map(Some).collect()
+                }
+                None => vec![None],
+            };
+            for idx in indices {
+                let name = match idx {
+                    Some(idx) => Name::resolve(&format!("{}[{}]", base, idx)),
+                    None => base.clone(),
+                };
+                let id = self.tree.data.ports.push_and_get_key(Port {
+                    name: name.clone(),
+                    discipline: discipline.clone(),
+                    is_input: is_input(&direction),
+                    is_output: is_output(&direction),
+                    ast_id,
+                    name_idx,
+                    is_gnd,
+                });
+
+                match nodes.iter_mut().find(|node| node.name == name) {
+                    Some(node) => node.decls.push(id.into()),
+                    None => {
+                        let node = nodes.push_and_get_key(Node {
+                            name,
+                            is_port: true,
+                            ast_id: ast_id.into(),
+                            decls: vec![id.into()],
+                        });
+                        dst.push(node.into())
+                    }
                 }
             }
         }

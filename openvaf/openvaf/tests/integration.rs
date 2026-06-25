@@ -336,6 +336,44 @@ fn test_laplace_nd_int() -> Result<()> {
     Ok(())
 }
 
+/// Vectored/bus ports: a port declared bare in the head and ranged in the body
+/// (`input [0:3] in`) must expand to in[0]..in[3] and index correctly. The output
+/// sums the four bits with distinct weights, so the loaded residual proves each bit
+/// is a distinct node. See `vector_ports.va`.
+fn test_vector_ports() -> Result<()> {
+    if stdx::IS_CI && cfg!(windows) {
+        return Ok(());
+    }
+    let desc = test_descriptor(&openvaf_test_data("osdi").join("vector_ports.va"))?;
+    let model = desc.new_model();
+    model.process_params()?;
+    let mut instance = model.new_instance();
+    let mut sim = instance.mock_simulation(&model, desc.num_terminals, 300.0)?;
+
+    sim.set_voltage("out", 0.0);
+    sim.set_voltage("in[0]", 1.0);
+    sim.set_voltage("in[1]", 1.0);
+    sim.set_voltage("in[2]", 1.0);
+    sim.set_voltage("in[3]", 1.0);
+    instance.eval(&model, &mut sim, EvalFlags::empty());
+    instance.load_dae(&model, &mut sim);
+
+    // residual(out) = V(out) - (1+2+3+4) = -10.
+    float_cmp::assert_approx_eq!(f64, sim.read_residual("out").0, -10.0, epsilon = 1e-9);
+    Ok(())
+}
+
+/// LRM 2.4 transition() Example 1 (QAM modulator): vectored input ports declared
+/// bare in the head and ranged in the body, bus indexing, transition, $abstime.
+/// Compile+load guard.
+fn test_qam16() -> Result<()> {
+    if stdx::IS_CI && cfg!(windows) {
+        return Ok(());
+    }
+    test_descriptor(&openvaf_test_data("osdi").join("qam16.va"))?;
+    Ok(())
+}
+
 harness! {
     // TODO: run this in CI, somehow this test is flakey tough regarding the linker invocation (and really slow)
     Test::from_dir("integration", &integration_test, &ignore_dev_tests, &project_root().join("integration_tests")),
@@ -345,5 +383,5 @@ harness! {
     Test::from_dir_filtered("vacask_spice", &vacask_spice_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice")),
     // VACASK simplified SPICE models
     Test::from_dir_filtered("vacask_spice_sn", &vacask_spice_sn_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice/sn")),
-    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch),Test::new("laplace_nd_int", &test_laplace_nd_int)]
+    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch),Test::new("laplace_nd_int", &test_laplace_nd_int),Test::new("vector_ports", &test_vector_ports),Test::new("qam16", &test_qam16)]
 }

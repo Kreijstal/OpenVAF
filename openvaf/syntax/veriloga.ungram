@@ -254,7 +254,7 @@ BodyPortDecl =
   PortDecl ';'
 
 PortDecl =
-  AttrList* Direction discipline:NameRef?  'net_type'? (Name (',' Name)*)
+  AttrList* Direction discipline:NameRef?  'net_type'? Dimension? (Name (',' Name)*)
 
 Direction =
   'inout' | 'input' | 'output'

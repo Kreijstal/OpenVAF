@@ -106,6 +106,17 @@ fn port_decl<const MODULE_HEAD: bool>(p: &mut Parser, m: Marker) {
     }
     p.eat(NET_TYPE);
 
+    // Optional vectored/bus range, e.g. `input [0:3] in;` / `output [0:bits-1] out;`.
+    if p.at(T!['[']) {
+        let dim = p.start();
+        p.bump(T!['[']);
+        expr(p);
+        p.expect(T![:]);
+        expr(p);
+        p.expect(T![']']);
+        dim.complete(p, DIMENSION);
+    }
+
     if MODULE_HEAD {
         decl_list(p, T![')'], module_port, MODULE_PORT_RECOVERY);
     } else {
