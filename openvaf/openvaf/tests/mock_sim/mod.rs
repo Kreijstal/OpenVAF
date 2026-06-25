@@ -178,6 +178,18 @@ impl OsdiInstance {
         sim.state_1.resize(self.descriptor.num_states as usize, 0.0);
         sim.state_2.resize(self.descriptor.num_states as usize, 0.0);
         sim.noise_dense.resize(self.descriptor.num_noise_src as usize, 0.0);
+
+        // Initialize the per-instance state_idx map (logical limit-state -> physical
+        // slot in prev_state/next_state). A real simulator assigns these; with a
+        // single state the default 0 happens to work, but with several they would all
+        // alias slot 0. Use the identity mapping.
+        unsafe {
+            let data = self.data as *mut u8;
+            let state_idx = data.add(self.descriptor.state_idx_off as usize).cast::<u32>();
+            for i in 0..self.descriptor.num_states {
+                state_idx.add(i as usize).write(i);
+            }
+        }
         Ok(sim)
     }
 

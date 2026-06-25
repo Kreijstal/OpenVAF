@@ -27,7 +27,10 @@ pub struct LoweringCtx<'a, 'c> {
     pub num_noise_sources: u32,
     /// Variables assigned inside `@(cross)` handlers, each mapped to the limit-state
     /// slot that stores its value across timesteps (latch / event retention).
-    pub retained_states: AHashMap<Variable, LimitState>,
+    /// Variables assigned inside `@(cross)` handlers that must retain their value
+    /// across timesteps. Each is backed by one retained limit-state slot per scalar,
+    /// or one per element for an array variable (in element order).
+    pub retained_states: AHashMap<Variable, Vec<LimitState>>,
     /// True while lowering an `@(initial_step)` body: resets of retained variables
     /// there are their initial value (read from the retained state), not a
     /// per-evaluation reset.

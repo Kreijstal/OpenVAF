@@ -374,6 +374,58 @@ fn test_qam16() -> Result<()> {
     Ok(())
 }
 
+/// Retained `@(cross)` ARRAY state: each array element assigned inside a cross
+/// handler must retain independently across timesteps. Drives the input
+/// high/dead-band/low and checks both elements hold and flip via the prev/next
+/// state swap. See `cross_array.va`; residual at q0/q1 equals -s[0]/-s[1].
+fn test_cross_array() -> Result<()> {
+    if stdx::IS_CI && cfg!(windows) {
+        return Ok(());
+    }
+
+    let desc = test_descriptor(&openvaf_test_data("osdi").join("cross_array.va"))?;
+    let model = desc.new_model();
+    model.process_params()?;
+    let mut instance = model.new_instance();
+    let mut sim = instance.mock_simulation(&model, desc.num_terminals, 300.0)?;
+
+    let step = |instance: &OsdiInstance, model: &OsdiModel, sim: &mut MockSimulation, vd: f64, first: bool| {
+        if !first {
+            sim.next_iter();
+        }
+        sim.set_voltage("q0", 0.0);
+        sim.set_voltage("q1", 0.0);
+        sim.set_voltage("d", vd);
+        instance.eval(model, sim, EvalFlags::ENABLE_LIM | EvalFlags::INIT_LIM);
+        instance.load_dae(model, sim);
+        (sim.read_residual("q0").0, sim.read_residual("q1").0)
+    };
+
+    let check = |(a, b): (f64, f64), ea: f64, eb: f64| {
+        float_cmp::assert_approx_eq!(f64, a, ea, epsilon = 1e-9);
+        float_cmp::assert_approx_eq!(f64, b, eb, epsilon = 1e-9);
+    };
+
+    check(step(&instance, &model, &mut sim, 1.0, true), -1.0, -2.0); // set s=[1,2]
+    check(step(&instance, &model, &mut sim, 0.5, false), -1.0, -2.0); // dead-band: retained
+    check(step(&instance, &model, &mut sim, 0.0, false), 0.0, 0.0); // clear s=[0,0]
+    check(step(&instance, &model, &mut sim, 0.5, false), 0.0, 0.0); // dead-band: retained
+    check(step(&instance, &model, &mut sim, 1.0, false), -1.0, -2.0); // flips back
+    Ok(())
+}
+
+/// LRM 2.4 transition() Example 2 (N-bit A/D converter), legal form (continuous
+/// contributions outside the discrete @(cross) sampler). Exercises the whole new
+/// stack at once: vector ports + genvar unroll + retained @(cross) array +
+/// transition. Compile+load guard.
+fn test_adc() -> Result<()> {
+    if stdx::IS_CI && cfg!(windows) {
+        return Ok(());
+    }
+    test_descriptor(&openvaf_test_data("osdi").join("adc.va"))?;
+    Ok(())
+}
+
 harness! {
     // TODO: run this in CI, somehow this test is flakey tough regarding the linker invocation (and really slow)
     Test::from_dir("integration", &integration_test, &ignore_dev_tests, &project_root().join("integration_tests")),
@@ -383,5 +435,5 @@ harness! {
     Test::from_dir_filtered("vacask_spice", &vacask_spice_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice")),
     // VACASK simplified SPICE models
     Test::from_dir_filtered("vacask_spice_sn", &vacask_spice_sn_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice/sn")),
-    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch),Test::new("laplace_nd_int", &test_laplace_nd_int),Test::new("vector_ports", &test_vector_ports),Test::new("qam16", &test_qam16)]
+    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch),Test::new("laplace_nd_int", &test_laplace_nd_int),Test::new("vector_ports", &test_vector_ports),Test::new("qam16", &test_qam16),Test::new("cross_array", &test_cross_array),Test::new("adc", &test_adc)]
 }
