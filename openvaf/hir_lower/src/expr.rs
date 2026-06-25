@@ -864,13 +864,45 @@ impl BodyLoweringCtx<'_, '_, '_> {
     /// Read the coefficient values of an array-valued argument (an array variable's
     /// elements or an array literal's entries), lowest index first.
     fn array_coeffs(&mut self, arg: ExprId) -> Vec<Value> {
+        // Laplace coefficients feed real-valued state-space arithmetic, but an
+        // anonymous array literal of integer constants (the LRM's own examples use
+        // `'{-1,0,1}`) lowers to integer values. Widen each coefficient to real so
+        // the residual math stays well-typed.
         match self.body.get_expr(arg) {
             Expr::Read(Ref::Variable(var)) => {
                 let len = self.array_len(var);
-                (0..len).map(|i| self.ctx.use_place(PlaceKind::VarElement(var, i))).collect()
+                let elem_ty = match var.ty(self.ctx.db) {
+                    Type::Array { ty, .. } => *ty,
+                    other => other,
+                };
+                (0..len)
+                    .map(|i| {
+                        let v = self.ctx.use_place(PlaceKind::VarElement(var, i));
+                        self.coeff_to_real(v, &elem_ty)
+                    })
+                    .collect()
             }
-            Expr::Array(elems) => elems.iter().map(|&e| self.lower_expr(e)).collect(),
-            _ => vec![self.lower_expr(arg)],
+            Expr::Array(elems) => elems
+                .iter()
+                .map(|&e| {
+                    let v = self.lower_expr(e);
+                    let ty = self.body.expr_type(e);
+                    self.coeff_to_real(v, &ty)
+                })
+                .collect(),
+            _ => {
+                let v = self.lower_expr(arg);
+                let ty = self.body.expr_type(arg);
+                vec![self.coeff_to_real(v, &ty)]
+            }
+        }
+    }
+
+    /// Widen an integer/bool coefficient value to real; reals pass through.
+    fn coeff_to_real(&mut self, v: Value, ty: &Type) -> Value {
+        match ty {
+            Type::Integer | Type::Bool => self.ctx.insert_cast(v, ty, &Type::Real),
+            _ => v,
         }
     }
 

@@ -324,6 +324,18 @@ fn test_cross_latch() -> Result<()> {
     Ok(())
 }
 
+/// Regression: `laplace_nd` with anonymous integer coefficient literals (the form
+/// the LRM examples use) must compile without the optimizer panicking on mixed
+/// int/float arithmetic. Compiling + loading the descriptor is enough to guard the
+/// crash. See `laplace_nd_int.va`.
+fn test_laplace_nd_int() -> Result<()> {
+    if stdx::IS_CI && cfg!(windows) {
+        return Ok(());
+    }
+    test_descriptor(&openvaf_test_data("osdi").join("laplace_nd_int.va"))?;
+    Ok(())
+}
+
 harness! {
     // TODO: run this in CI, somehow this test is flakey tough regarding the linker invocation (and really slow)
     Test::from_dir("integration", &integration_test, &ignore_dev_tests, &project_root().join("integration_tests")),
@@ -333,5 +345,5 @@ harness! {
     Test::from_dir_filtered("vacask_spice", &vacask_spice_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice")),
     // VACASK simplified SPICE models
     Test::from_dir_filtered("vacask_spice_sn", &vacask_spice_sn_test, &is_va_file, &ignore_dev_tests, &vacask_devices().join("spice/sn")),
-    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch)]
+    [Test::new("$limit", &test_limit),Test::new("noise", &test_noise),Test::new("arrays", &test_arrays),Test::new("cross_latch", &test_cross_latch),Test::new("laplace_nd_int", &test_laplace_nd_int)]
 }
